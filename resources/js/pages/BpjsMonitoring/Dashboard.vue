@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { ref, onMounted, onUnmounted } from 'vue';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import AppHeaderLayout from '@/layouts/app/AppHeaderLayout.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import RealtimeLineChart from '@/components/charts/RealtimeLineChart.vue';
 import { 
   Activity, 
   CheckCircle, 
@@ -99,6 +100,43 @@ const newEndpoint = ref<Partial<CustomEndpoint>>({
 
 let intervalId: number | null = null;
 
+// Realtime chart state (avg response time over time)
+const chartLabels = ref<string[]>([]);
+const chartValues = ref<number[]>([]);
+// Multi-series datasets for per-endpoint response time
+interface LineDataset {
+  id: string;
+  label: string;
+  data: Array<number | null>;
+  borderColor?: string;
+  backgroundColor?: string;
+  pointRadius?: number;
+  tension?: number;
+}
+const chartDatasets = ref<LineDataset[]>([]);
+const seriesColors = ['#2563eb', '#16a34a', '#ef4444', '#f59e0b', '#9333ea', '#06b6d4', '#10b981', '#8b5cf6', '#3b82f6', '#14b8a6', '#f97316', '#dc2626'];
+const getSeriesColor = (idx: number) => seriesColors[idx % seriesColors.length];
+const MAX_POINTS = 50;
+
+const isDarkChart = ref(false);
+const updateIsDarkChart = () => {
+  if (typeof document !== 'undefined') {
+    isDarkChart.value = document.documentElement.classList.contains('dark');
+  }
+};
+
+// Safeguard: filter out null/invalid endpoint items before rendering
+const safeEndpoints = computed(() => {
+  const eps = monitoringData.value?.endpoints || [];
+  return eps.filter((ep: any) => {
+    if (!ep) return false;
+    const t = typeof ep;
+    if (t !== 'object') return false;
+    // ensure we have at least an identifier to show
+    return typeof ep.name === 'string' || typeof ep.url === 'string';
+  });
+});
+
 // LocalStorage functions
 const saveCustomEndpoints = () => {
   localStorage.setItem('bpjs_custom_endpoints', JSON.stringify(customEndpoints.value));
@@ -108,12 +146,37 @@ const loadCustomEndpoints = () => {
   const stored = localStorage.getItem('bpjs_custom_endpoints');
   if (stored) {
     try {
-      customEndpoints.value = JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      // Sanitize: remove null/invalid entries to prevent runtime errors
+      customEndpoints.value = Array.isArray(parsed)
+        ? parsed.filter((ep: any) => ep && typeof ep === 'object')
+        : [];
     } catch (e) {
       console.error('Error loading custom endpoints:', e);
       customEndpoints.value = [];
     }
   }
+};
+
+// Normalize common BPJS URL typos (e.g., .go.ids → .go.id)
+const normalizeBpjsUrl = (url: string) => {
+  const trimmed = (url || '').trim();
+  let normalized = trimmed;
+  let corrected = false;
+
+  const corrections: Array<[string, string]> = [
+    ['apijkn.bpjs-kesehatan.go.ids', 'apijkn.bpjs-kesehatan.go.id'],
+    ['bpjs-kesehatan.go.ids', 'bpjs-kesehatan.go.id']
+  ];
+
+  corrections.forEach(([bad, good]) => {
+    if (normalized.includes(bad)) {
+      normalized = normalized.replace(bad, good);
+      corrected = true;
+    }
+  });
+
+  return { url: normalized, corrected };
 };
 
 const addCustomEndpoint = () => {
@@ -122,14 +185,24 @@ const addCustomEndpoint = () => {
     return;
   }
 
-  // Detect if this is a BPJS endpoint
-  const isBpjsEndpoint = newEndpoint.value.url.includes('apijkn.bpjs-kesehatan.go.id') || 
-                        newEndpoint.value.url.includes('bpjs-kesehatan.go.id');
+  // Normalize URL first to fix common typos
+  const normalized = normalizeBpjsUrl(newEndpoint.value.url);
+  if (normalized.corrected) {
+    error.value = 'Memperbaiki URL: mengganti domain .go.ids menjadi .go.id';
+    setTimeout(() => { error.value = null; }, 5000);
+  }
+
+  // Detect if this is a BPJS endpoint (be forgiving to common typos)
+  const isBpjsEndpoint = normalized.url.includes('apijkn.bpjs-kesehatan.go.id') ||
+                         normalized.url.includes('bpjs-kesehatan.go.id') ||
+                         normalized.url.includes('new-api.bpjs-kesehatan.go.id') ||
+                         normalized.url.includes('apijkn.bpjs-kesehatan.go.') ||
+                         normalized.url.includes('bpjs-kesehatan.go.');
 
   const endpoint: CustomEndpoint = {
     id: Date.now().toString(),
     name: newEndpoint.value.name,
-    url: newEndpoint.value.url,
+    url: normalized.url,
     description: newEndpoint.value.description || '',
     method: newEndpoint.value.method || 'GET',
     headers: newEndpoint.value.headers || {},
@@ -171,6 +244,12 @@ const editCustomEndpoint = (endpoint: CustomEndpoint) => {
   showAddEndpointModal.value = true;
 };
 
+const editCustomEndpointById = (id?: string) => {
+  if (!id) return;
+  const ep = customEndpoints.value.find(e => e.id === id);
+  if (ep) editCustomEndpoint(ep);
+};
+
 const updateCustomEndpoint = () => {
   if (!editingEndpoint.value || !newEndpoint.value.name || !newEndpoint.value.url) {
     error.value = 'Name and URL are required';
@@ -179,15 +258,29 @@ const updateCustomEndpoint = () => {
 
   const index = customEndpoints.value.findIndex(ep => ep.id === editingEndpoint.value!.id);
   if (index !== -1) {
+    // Normalize URL then recalculate BPJS detection when URL changes
+    const normalized = normalizeBpjsUrl(newEndpoint.value.url);
+    if (normalized.corrected) {
+      error.value = 'Memperbaiki URL: mengganti domain .go.ids menjadi .go.id';
+      setTimeout(() => { error.value = null; }, 5000);
+    }
+
+    const isBpjsEndpoint = normalized.url.includes('bpjs-kesehatan.go.id') ||
+                           normalized.url.includes('apijkn.bpjs-kesehatan.go.id') ||
+                           normalized.url.includes('new-api.bpjs-kesehatan.go.id');
+
     customEndpoints.value[index] = {
       ...editingEndpoint.value,
       name: newEndpoint.value.name,
-      url: newEndpoint.value.url,
+      url: normalized.url,
       description: newEndpoint.value.description || '',
       method: newEndpoint.value.method || 'GET',
       headers: newEndpoint.value.headers || {},
       timeout: newEndpoint.value.timeout || 10,
-      isActive: newEndpoint.value.isActive !== false
+      isActive: newEndpoint.value.isActive !== false,
+      isBpjsEndpoint,
+      // Always enable proxy for BPJS endpoints so backend adds auth headers
+      useProxy: isBpjsEndpoint
     };
     
     saveCustomEndpoints();
@@ -236,7 +329,8 @@ const testCustomEndpoint = async (endpoint: CustomEndpoint): Promise<EndpointDat
     let response;
     
     // Use backend proxy for BPJS endpoints
-    if (endpoint.isBpjsEndpoint && endpoint.useProxy) {
+    // For BPJS endpoints, always use backend proxy so proper authentication headers are applied
+    if (endpoint.isBpjsEndpoint) {
       // Test via backend with proper BPJS authentication
       response = await fetch('/bpjs-monitoring/test-custom-endpoint', {
         method: 'POST',
@@ -307,7 +401,7 @@ const testCustomEndpoint = async (endpoint: CustomEndpoint): Promise<EndpointDat
     let message = 'Network error';
     let status: 'error' | 'timeout' = 'error';
     
-    if (error.name === 'TimeoutError') {
+    if (error?.name === 'TimeoutError') {
       message = 'Request timeout';
       status = 'timeout';
     } else if (error.message?.includes('CORS')) {
@@ -363,7 +457,8 @@ const fetchMonitoringData = async () => {
     
     // Test custom endpoints and add to the results
     const customResults: EndpointData[] = [];
-    const activeCustomEndpoints = customEndpoints.value.filter(ep => ep.isActive);
+    const activeCustomEndpoints = customEndpoints.value
+      .filter((ep: any) => ep && typeof ep === 'object' && ep.isActive);
     
     if (activeCustomEndpoints.length > 0) {
       const customTests = await Promise.allSettled(
@@ -392,8 +487,13 @@ const fetchMonitoringData = async () => {
       });
     }
     
+    // Sanitize default endpoints to avoid null/invalid items
+    const defaultEndpoints: EndpointData[] = Array.isArray(data.endpoints)
+      ? data.endpoints.filter((ep: any) => ep && typeof ep === 'object' && typeof ep.name === 'string')
+      : [];
+
     // Combine default and custom endpoints
-    const allEndpoints = [...data.endpoints, ...customResults];
+    const allEndpoints = [...defaultEndpoints, ...customResults];
     
     // Recalculate summary with custom endpoints included
     const totalEndpoints = allEndpoints.length;
@@ -415,8 +515,53 @@ const fetchMonitoringData = async () => {
       },
       endpoints: allEndpoints
     };
-    
+
     lastUpdate.value = data.timestamp;
+
+    // Push new point to realtime chart
+    const label = new Date(data.timestamp).toLocaleTimeString();
+    chartLabels.value.push(label);
+    chartValues.value.push(Math.round(monitoringData.value.summary.avg_response_time));
+    if (chartLabels.value.length > MAX_POINTS) {
+      chartLabels.value.shift();
+      chartValues.value.shift();
+    }
+
+    // Build per-endpoint series for multi-line chart
+    const endpointMap = new Map<string, { label: string; value: number }>();
+    allEndpoints.forEach((ep) => {
+      const key = ep.customId || ep.name || ep.url;
+      const labelName = ep.name || ep.url || 'Unknown';
+      endpointMap.set(key, { label: labelName, value: Math.round(ep.response_time) });
+    });
+
+    // Append current values to existing datasets; use null when endpoint missing
+    chartDatasets.value.forEach((ds) => {
+      const entry = endpointMap.get(ds.id);
+      ds.data.push(entry ? entry.value : null);
+      if (ds.data.length > MAX_POINTS) ds.data.shift();
+    });
+
+    // Add new datasets for endpoints that appear now
+    const existingKeys = new Set(chartDatasets.value.map((ds) => ds.id));
+    let nextColorIndex = chartDatasets.value.length;
+    endpointMap.forEach((entry, key) => {
+      if (!existingKeys.has(key)) {
+        const initialGaps = Array(Math.max(0, chartLabels.value.length - 1)).fill(null);
+        chartDatasets.value.push({
+          id: key,
+          label: entry.label,
+          data: [...initialGaps, entry.value],
+          borderColor: getSeriesColor(nextColorIndex),
+          pointRadius: 2,
+          tension: 0.25,
+        });
+        nextColorIndex++;
+      }
+    });
+
+    // Sync dark mode for chart styling
+    updateIsDarkChart();
     
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'An error occurred';
@@ -473,18 +618,28 @@ onMounted(() => {
   intervalId = window.setInterval(() => {
     fetchMonitoringData();
   }, 30000);
+  updateIsDarkChart();
+  const mql = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  const handler = () => updateIsDarkChart();
+  if (mql) mql.addEventListener('change', handler);
+  // store for cleanup
+  (isDarkChart as any)._mql = mql;
+  (isDarkChart as any)._handler = handler;
 });
 
 onUnmounted(() => {
   if (intervalId) {
     clearInterval(intervalId);
   }
+  const mql = (isDarkChart as any)._mql as MediaQueryList | null;
+  const handler = (isDarkChart as any)._handler as (() => void) | null;
+  if (mql && handler) mql.removeEventListener('change', handler as EventListener);
 });
 </script>
 
 <template>
   <Head title="BPJS Monitoring Dashboard" />
-  <AppLayout :breadcrumbs="breadcrumbs">
+<AppHeaderLayout :breadcrumbs="breadcrumbs">
     <div class="flex h-full flex-1 flex-col gap-6 p-6">
       <!-- Header -->
       <div class="flex items-center justify-between">
@@ -629,19 +784,30 @@ onUnmounted(() => {
               </div>
             </CardContent>
           </Card>
-        </div>
+      </div>
 
-        <!-- Endpoints Table -->
-        <Card>
-          <CardHeader>
-            <CardTitle>Endpoint Status</CardTitle>
-            <CardDescription>Real-time status of all monitored endpoints</CardDescription>
+      <!-- Real-time Line Chart -->
+      <Card>
+        <CardHeader>
+          <CardTitle>Response Time (Real-time)</CardTitle>
+          <CardDescription>Grafik garis interaktif yang memperbarui otomatis setiap 30 detik</CardDescription>
+        </CardHeader>
+      <CardContent>
+          <RealtimeLineChart :labels="chartLabels" :datasets="chartDatasets" :dark="isDarkChart" />
+      </CardContent>
+      </Card>
+
+      <!-- Endpoints Table -->
+      <Card>
+        <CardHeader>
+          <CardTitle>Endpoint Status</CardTitle>
+          <CardDescription>Real-time status of all monitored endpoints</CardDescription>
           </CardHeader>
           <CardContent>
             <div class="space-y-3">
               <div 
-                v-for="endpoint in monitoringData.endpoints" 
-                :key="endpoint.name"
+                v-for="(endpoint, idx) in safeEndpoints" 
+                :key="endpoint.customId || endpoint.name || endpoint.url || idx"
                 class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
               >
                 <div class="flex items-center space-x-4 flex-1">
@@ -656,7 +822,7 @@ onUnmounted(() => {
                   <div class="flex-1">
                     <div class="flex items-center space-x-2">
                       <div class="font-medium text-gray-900 dark:text-white">
-                        {{ endpoint.name }}
+                        {{ endpoint.name || endpoint.url || 'Unknown' }}
                       </div>
                       <span v-if="endpoint.isCustom" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
                         Custom
@@ -672,7 +838,7 @@ onUnmounted(() => {
                   <!-- Custom endpoint actions -->
                   <div v-if="endpoint.isCustom" class="flex items-center space-x-2">
                     <Button 
-                      @click="editCustomEndpoint(customEndpoints.find(ep => ep.id === endpoint.customId)!)"
+                      @click="editCustomEndpointById(endpoint.customId)"
                       variant="ghost"
                       size="sm"
                       class="h-8 w-8 p-0"
@@ -842,15 +1008,15 @@ onUnmounted(() => {
           </div>
 
           <div v-else class="space-y-3">
-            <div 
-              v-for="endpoint in customEndpoints" 
+              <div 
+              v-for="endpoint in customEndpoints.filter(Boolean)" 
               :key="endpoint.id"
               class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg"
             >
               <div class="flex-1">
                 <div class="flex items-center space-x-2">
                   <div class="font-medium text-gray-900 dark:text-white">
-                    {{ endpoint.name }}
+                    {{ endpoint.name || endpoint.url || 'Unknown' }}
                   </div>
                   <span 
                     :class="[
@@ -909,5 +1075,5 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-  </AppLayout>
+</AppHeaderLayout>
 </template>

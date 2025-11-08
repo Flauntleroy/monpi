@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
 import { ref, onMounted, onUnmounted, computed } from 'vue';
-import AppLayout from '@/layouts/AppLayout.vue';
+import AppHeaderLayout from '@/layouts/app/AppHeaderLayout.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import VueApexCharts from 'vue3-apexcharts';
@@ -196,18 +196,54 @@ const loadCustomEndpoints = () => {
   }
 };
 
+// Normalize common BPJS URL typos (e.g., .go.ids → .go.id)
+const normalizeBpjsUrl = (url: string) => {
+  const trimmed = (url || '').trim();
+  let normalized = trimmed;
+  let corrected = false;
+
+  const corrections: Array<[string, string]> = [
+    ['apijkn.bpjs-kesehatan.go.ids', 'apijkn.bpjs-kesehatan.go.id'],
+    ['bpjs-kesehatan.go.ids', 'bpjs-kesehatan.go.id']
+  ];
+
+  corrections.forEach(([bad, good]) => {
+    if (normalized.includes(bad)) {
+      normalized = normalized.replace(bad, good);
+      corrected = true;
+    }
+  });
+
+  return { url: normalized, corrected };
+};
+
 const addCustomEndpoint = () => {
+  // Normalize then detect BPJS endpoints across known domains and subdomains
+  const normalized = normalizeBpjsUrl(newEndpoint.value.url || '');
+  if (normalized.corrected) {
+    error.value = 'Memperbaiki URL: mengganti domain .go.ids menjadi .go.id';
+    setTimeout(() => { error.value = null; }, 5000);
+  }
+  const urlStr = normalized.url;
+  const isBpjsEndpoint = urlStr.includes('bpjs-kesehatan.go.id') ||
+                         urlStr.includes('apijkn.bpjs-kesehatan.go.id') ||
+                         urlStr.includes('new-api.bpjs-kesehatan.go.id') ||
+                         // Be forgiving to common typos like .go.ids so they still route via proxy
+                         urlStr.includes('bpjs-kesehatan.go.') ||
+                         urlStr.includes('apijkn.bpjs-kesehatan.go.');
+
   const endpoint: CustomEndpoint = {
     id: Date.now().toString(),
     name: newEndpoint.value.name || '',
-    url: newEndpoint.value.url || '',
+    url: urlStr,
     description: newEndpoint.value.description || '',
     method: newEndpoint.value.method || 'GET',
     headers: newEndpoint.value.headers || {},
     timeout: newEndpoint.value.timeout || 10,
     isActive: true,
-    isBpjsEndpoint: (newEndpoint.value.url || '').includes('bpjs-kesehatan.go.id'),
-    useProxy: (newEndpoint.value.url || '').includes('bpjs-kesehatan.go.id')
+    isBpjsEndpoint,
+    // Auto-enable proxy for BPJS endpoints so backend adds auth headers
+    useProxy: isBpjsEndpoint
   };
 
   customEndpoints.value.push(endpoint);
@@ -238,9 +274,31 @@ const updateCustomEndpoint = () => {
   if (editingEndpoint.value) {
     const index = customEndpoints.value.findIndex(ep => ep.id === editingEndpoint.value!.id);
     if (index !== -1) {
+      // Normalize then recalculate BPJS detection when URL changes
+      const normalized = normalizeBpjsUrl(newEndpoint.value.url || editingEndpoint.value.url);
+      if (normalized.corrected) {
+        error.value = 'Memperbaiki URL: mengganti domain .go.ids menjadi .go.id';
+        setTimeout(() => { error.value = null; }, 5000);
+      }
+      const urlStr = normalized.url;
+      const isBpjsEndpoint = urlStr.includes('bpjs-kesehatan.go.id') ||
+                             urlStr.includes('apijkn.bpjs-kesehatan.go.id') ||
+                             urlStr.includes('new-api.bpjs-kesehatan.go.id') ||
+                             urlStr.includes('bpjs-kesehatan.go.') ||
+                             urlStr.includes('apijkn.bpjs-kesehatan.go.');
+
       customEndpoints.value[index] = {
         ...editingEndpoint.value,
-        ...newEndpoint.value
+        name: newEndpoint.value.name || editingEndpoint.value.name,
+        url: urlStr,
+        description: newEndpoint.value.description || editingEndpoint.value.description || '',
+        method: newEndpoint.value.method || editingEndpoint.value.method || 'GET',
+        headers: newEndpoint.value.headers || editingEndpoint.value.headers || {},
+        timeout: newEndpoint.value.timeout || editingEndpoint.value.timeout || 10,
+        isActive: newEndpoint.value.isActive !== undefined ? newEndpoint.value.isActive! : editingEndpoint.value.isActive,
+        isBpjsEndpoint,
+        // Auto-enable proxy for BPJS endpoints so backend adds auth headers
+        useProxy: isBpjsEndpoint
       } as CustomEndpoint;
       saveCustomEndpoints();
     }
@@ -509,7 +567,9 @@ const responseTimeChartData = computed(() => {
     name: 'Response Time (ms)',
     data: endpoints.map(ep => ep.response_time)
   }];
-  const categories = endpoints.map(ep => ep.name);
+  const categories = endpoints
+    .filter(Boolean)
+    .map(ep => ep.name || ep.url || 'Unknown');
   
   return { series, categories };
 });
@@ -697,7 +757,7 @@ onUnmounted(() => {
 <template>
   <Head title="BPJS API Monitoring" />
   
-  <AppLayout>
+<AppHeaderLayout>
     <template #header>
       <div class="flex items-center justify-between">
         <div>
@@ -974,7 +1034,7 @@ onUnmounted(() => {
                       <h4 class="font-medium text-sm">DNS Resolution</h4>
                     </div>
                     <div class="space-y-2">
-                      <div v-for="test in monitoringData.network_diagnostics.dns_resolution.tests.slice(0, 3)" :key="test.domain" 
+                      <div v-for="(test, idx) in (monitoringData.network_diagnostics.dns_resolution.tests || []).filter(Boolean).slice(0, 3)" :key="test.domain || idx" 
                            class="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-800 rounded p-2">
                         <div class="flex items-center space-x-2">
                           <div :class="getDiagnosticStatusColor(test.status)" class="w-2 h-2 rounded-full flex-shrink-0"></div>
@@ -993,11 +1053,11 @@ onUnmounted(() => {
                       <h4 class="font-medium text-sm">External APIs</h4>
                     </div>
                     <div class="space-y-2">
-                      <div v-for="test in monitoringData.network_diagnostics.external_connectivity.tests" :key="test.name" 
+                      <div v-for="(test, idx) in (monitoringData.network_diagnostics.external_connectivity.tests || []).filter(Boolean)" :key="test.name || test.url || test.host || idx" 
                            class="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-800 rounded p-2">
                         <div class="flex items-center space-x-2">
                           <div :class="getDiagnosticStatusColor(test.status)" class="w-2 h-2 rounded-full flex-shrink-0"></div>
-                          <span>{{ test.name }}</span>
+                          <span>{{ test.name || test.url || test.host || 'Unknown' }}</span>
                         </div>
                         <span class="text-gray-500">{{ test.response_time }}ms</span>
                       </div>
@@ -1012,7 +1072,7 @@ onUnmounted(() => {
                       <h4 class="font-medium text-sm">BPJS Infrastructure</h4>
                     </div>
                     <div class="space-y-2">
-                      <div v-for="test in monitoringData.network_diagnostics.bpjs_infrastructure.tests" :key="test.name" 
+                      <div v-for="(test, idx) in (monitoringData.network_diagnostics.bpjs_infrastructure.tests || []).filter(Boolean)" :key="test.name || idx" 
                            class="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-800 rounded p-2">
                         <div class="flex items-center space-x-2">
                           <div :class="getDiagnosticStatusColor(test.status)" class="w-2 h-2 rounded-full flex-shrink-0"></div>
@@ -1043,8 +1103,8 @@ onUnmounted(() => {
             <CardContent>
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div 
-                  v-for="endpoint in monitoringData.endpoints" 
-                  :key="endpoint.name"
+                  v-for="(endpoint, idx) in (monitoringData.endpoints || []).filter(Boolean)" 
+                  :key="endpoint.customId || endpoint.name || endpoint.url || idx"
                   class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                 >
                   <!-- Status Header -->
@@ -1082,7 +1142,7 @@ onUnmounted(() => {
                   <!-- Endpoint Info -->
                   <div class="space-y-2">
                     <div class="flex items-center justify-between">
-                      <h3 class="font-medium text-sm">{{ endpoint.name }}</h3>
+                      <h3 class="font-medium text-sm">{{ endpoint.name || endpoint.url || 'Unknown' }}</h3>
                       <span :class="getBadgeClass(endpoint.status)">
                         {{ endpoint.status }}
                       </span>
@@ -1238,7 +1298,7 @@ onUnmounted(() => {
             <div class="flex-1">
               <div class="flex items-center space-x-2">
                 <div :class="endpoint.isActive ? 'bg-green-500' : 'bg-gray-400'" class="w-2 h-2 rounded-full"></div>
-                <h4 class="font-medium">{{ endpoint.name }}</h4>
+                <h4 class="font-medium">{{ endpoint.name || endpoint.url || 'Unknown' }}</h4>
                 <span v-if="endpoint.isBpjsEndpoint" class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">BPJS</span>
               </div>
               <p class="text-sm text-gray-500 truncate">{{ endpoint.url }}</p>
@@ -1274,5 +1334,5 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-  </AppLayout>
+</AppHeaderLayout>
 </template>

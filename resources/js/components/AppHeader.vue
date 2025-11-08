@@ -9,6 +9,7 @@ import { NavigationMenu, NavigationMenuItem, NavigationMenuList, navigationMenuT
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import UserMenuContent from '@/components/UserMenuContent.vue';
+import ThemeToggle from '@/components/ThemeToggle.vue';
 import { getInitials } from '@/composables/useInitials';
 import type { BreadcrumbItem, NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
@@ -138,6 +139,9 @@ const rightNavItems: NavItem[] = [
                             <Search class="size-5 opacity-80 group-hover:opacity-100" />
                         </Button>
 
+                        <!-- Theme toggle -->
+                        <ThemeToggle />
+
                         <div class="hidden space-x-1 lg:flex">
                             <template v-for="item in rightNavItems" :key="item.title">
                                 <TooltipProvider :delay-duration="0">
@@ -167,7 +171,8 @@ const rightNavItems: NavItem[] = [
                                 class="relative size-10 w-auto rounded-full p-1 focus-within:ring-2 focus-within:ring-primary"
                             >
                                 <Avatar class="size-8 overflow-hidden rounded-full">
-                                    <AvatarImage v-if="auth.user.avatar" :src="auth.user.avatar" :alt="auth.user.name" />
+                                    <!-- Guard against null user before accessing avatar/name -->
+                                    <AvatarImage v-if="auth.user && auth.user.avatar" :src="auth.user.avatar" :alt="auth.user.name || 'User'" />
                                     <AvatarFallback class="rounded-lg bg-neutral-200 font-semibold text-black dark:bg-neutral-700 dark:text-white">
                                         {{ getInitials(auth.user?.name) }}
                                     </AvatarFallback>
@@ -175,7 +180,8 @@ const rightNavItems: NavItem[] = [
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" class="w-56">
-                            <UserMenuContent :user="auth.user" />
+                            <!-- Only render user menu when a user exists -->
+                            <UserMenuContent v-if="auth.user" :user="auth.user" />
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>

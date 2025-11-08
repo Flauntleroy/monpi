@@ -182,14 +182,15 @@ Route::prefix('bpjs-monitoring')->name('bpjs.')->group(function () {
         </html>';
     })->name('simple');
     
+    // Gunakan halaman khusus BPJS Monitoring, terpisah dari dashboard default Laravel
     Route::get('/', function () {
-        return Inertia::render('Dashboard');
+        return Inertia::render('BpjsMonitoring/Dashboard');
     })->name('index');
     Route::get('/data', [BpjsMonitoringControllerDebug::class, 'getMonitoringData'])->name('data');
     
-    // Network Diagnostic Dashboard - route baru
+    // Network Diagnostic Dashboard
     Route::get('/network-diagnostic', function () {
-        return Inertia::render('Dashboard');
+        return Inertia::render('BpjsMonitoring/Dashboard');
     })->name('network.diagnostic');
     
     // API untuk Network Diagnostic

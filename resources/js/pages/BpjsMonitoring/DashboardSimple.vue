@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
 import { ref, onMounted, onUnmounted } from 'vue';
-import AppLayout from '@/layouts/AppLayout.vue';
+import AppHeaderLayout from '@/layouts/app/AppHeaderLayout.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
@@ -151,7 +151,7 @@ onUnmounted(() => {
 
 <template>
   <Head title="BPJS Monitoring Dashboard" />
-  <AppLayout :breadcrumbs="breadcrumbs">
+<AppHeaderLayout :breadcrumbs="breadcrumbs">
     <div class="flex h-full flex-1 flex-col gap-6 p-6">
       <!-- Header -->
       <div class="flex items-center justify-between">
@@ -342,5 +342,5 @@ onUnmounted(() => {
         </Card>
       </div>
     </div>
-  </AppLayout>
+</AppHeaderLayout>
 </template>

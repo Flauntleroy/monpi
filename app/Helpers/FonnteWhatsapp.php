@@ -8,9 +8,17 @@ use Illuminate\Support\Facades\Cache;
 
 class FonnteWhatsapp
 {
-    public static function send($message, $phone = '6281256180502', $cooldownMinutes = 15)
+    public static function send($message, $phone = null, $cooldownMinutes = 15)
     {
         try {
+            // Feature flag: allow disabling WhatsApp sending via .env
+            if (!env('FONNTE_ENABLED', true)) {
+                Log::info('WhatsApp sending disabled via FONNTE_ENABLED');
+                return ['status' => false, 'message' => 'WhatsApp disabled'];
+            }
+
+            // Resolve target phone from env if not provided
+            $phone = $phone ?: env('FONNTE_TARGET', '6281256180502');
             // Buat unique key untuk cooldown berdasarkan pesan dan nomor HP
             $cacheKey = 'whatsapp_sent_' . md5($phone . '_' . $message);
             
@@ -24,7 +32,8 @@ class FonnteWhatsapp
                 return ['status' => 'skipped', 'message' => 'Message skipped due to cooldown'];
             }
             
-            $token = 'nFi7goGNVJiG25gCbL7k';
+            // Read token from env with fallback (for dev)
+            $token = env('FONNTE_TOKEN', 'nFi7goGNVJiG25gCbL7k');
             
             Log::info('Attempting to send WhatsApp message', [
                 'phone' => $phone,
@@ -93,7 +102,7 @@ class FonnteWhatsapp
         $alertMessage .= "URL: $url\n";
         $alertMessage .= "Time: " . date('Y-m-d H:i:s');
         
-        $result = self::sendDirect($alertMessage, '6281256180502');
+        $result = self::sendDirect($alertMessage, env('FONNTE_TARGET', '6281256180502'));
         
         // Set cooldown jika berhasil
         if (isset($result['status']) && $result['status']) {
@@ -131,7 +140,7 @@ class FonnteWhatsapp
         $alertMessage .= "URL: $url\n";
         $alertMessage .= "Time: " . date('Y-m-d H:i:s');
         
-        $result = self::sendDirect($alertMessage, '6281256180502');
+        $result = self::sendDirect($alertMessage, env('FONNTE_TARGET', '6281256180502'));
         
         // Set cooldown jika berhasil
         if (isset($result['status']) && $result['status']) {
@@ -169,7 +178,7 @@ class FonnteWhatsapp
         $alertMessage .= "URL: $url\n";
         $alertMessage .= "Time: " . date('Y-m-d H:i:s');
         
-        $result = self::sendDirect($alertMessage, '6281256180502');
+        $result = self::sendDirect($alertMessage, env('FONNTE_TARGET', '6281256180502'));
         
         // Set cooldown jika berhasil
         if (isset($result['status']) && $result['status']) {
@@ -223,7 +232,7 @@ class FonnteWhatsapp
             $alertMessage .= "• Action: Check DNS settings or specific network routes";
         }
         
-        $result = self::sendDirect($alertMessage, '6281256180502');
+        $result = self::sendDirect($alertMessage, env('FONNTE_TARGET', '6281256180502'));
         
         // Set cooldown jika berhasil
         if (isset($result['status']) && $result['status']) {
@@ -236,10 +245,15 @@ class FonnteWhatsapp
         
         return $result;
     }
-    private static function sendDirect($message, $phone = '6281256180502')
+    private static function sendDirect($message, $phone = null)
     {
         try {
-            $token = 'nFi7goGNVJiG25gCbL7k';
+            if (!env('FONNTE_ENABLED', true)) {
+                Log::info('WhatsApp direct send skipped: disabled');
+                return ['status' => false, 'message' => 'WhatsApp disabled'];
+            }
+            $phone = $phone ?: env('FONNTE_TARGET', '6281256180502');
+            $token = env('FONNTE_TOKEN', 'nFi7goGNVJiG25gCbL7k');
             
             Log::info('Attempting to send WhatsApp message', [
                 'phone' => $phone,

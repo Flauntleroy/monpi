@@ -4,6 +4,9 @@ import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Activity, Signal, Clock, ShieldCheck, AlertTriangle, Plus, RefreshCw } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -226,31 +229,34 @@ onMounted(() => {
         <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 
-                <!-- Header -->
+                <!-- Hero Header -->
                 <div class="mb-8">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
-                                Network Diagnostic
-                            </h1>
-                            <p class="mt-2 text-gray-600 dark:text-gray-400">
-                                Real-time monitoring of BPJS endpoints and network performance
-                            </p>
-                        </div>
-                        <div class="flex items-center space-x-4">
-                            <button @click="showAddEndpointModal = true" 
-                                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                                </svg>
-                                Add Custom Endpoint
-                            </button>
-                            <div class="flex items-center space-x-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                                <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <span class="text-sm text-gray-600 dark:text-gray-300">Live</span>
-                                <span class="text-xs text-gray-500 dark:text-gray-400">
-                                    {{ formatDate(timestamp) }}
-                                </span>
+                    <div class="relative overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800">
+                        <div class="p-6 md:p-8">
+                            <div class="flex items-center justify-between">
+                                <div class="space-y-2">
+                                    <div class="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900 px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-200">
+                                        <Signal class="mr-2 h-3.5 w-3.5" />
+                                        Live Monitoring
+                                    </div>
+                                    <h1 class="text-2xl md:text-3xl font-semibold tracking-tight text-gray-900 dark:text-white">
+                                        Network Diagnostic
+                                    </h1>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                                        Modern dashboard for BPJS connectivity and network performance
+                                    </p>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <Button @click="showAddEndpointModal = true" size="sm">
+                                        <Plus class="w-4 h-4 mr-2" />
+                                        Add Endpoint
+                                    </Button>
+                                    <div class="hidden md:flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2">
+                                        <div class="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                                        <span class="text-sm text-gray-600 dark:text-gray-300">Live</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatDate(timestamp) }}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -258,108 +264,84 @@ onMounted(() => {
 
                 <!-- Summary Stats -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                        <div class="p-5">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0">
-                                    <div class="w-8 h-8 bg-gray-500 rounded-lg flex items-center justify-center">
-                                        <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                        </svg>
+                    <Card class="shadow-sm">
+                        <CardHeader class="pb-2">
+                            <div class="flex items-center gap-3">
+                                <div class="h-9 w-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                                    <Activity class="h-5 w-5 text-gray-700 dark:text-gray-300" />
+                                </div>
+                                <div>
+                                    <CardTitle class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Endpoints</CardTitle>
+                                    <div class="text-xl font-semibold text-gray-900 dark:text-white">
+                                        {{ currentStatus.bpjs.length + currentStatus.baseline.length }}
                                     </div>
                                 </div>
-                                <div class="ml-5 w-0 flex-1">
-                                    <dl>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Total Endpoints</dt>
-                                        <dd class="text-lg font-medium text-gray-900 dark:text-white">
-                                            {{ currentStatus.bpjs.length + currentStatus.baseline.length }}
-                                        </dd>
-                                    </dl>
-                                </div>
                             </div>
-                        </div>
-                    </div>
+                        </CardHeader>
+                    </Card>
 
-                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                        <div class="p-5">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0">
-                                    <div class="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-                                        <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
+                    <Card class="shadow-sm">
+                        <CardHeader class="pb-2">
+                            <div class="flex items-center gap-3">
+                                <div class="h-9 w-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+                                    <ShieldCheck class="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                </div>
+                                <div>
+                                    <CardTitle class="text-sm font-medium text-gray-500 dark:text-gray-400">Success Rate</CardTitle>
+                                    <div class="text-xl font-semibold text-gray-900 dark:text-white">
+                                        {{ getSuccessRate() }}%
                                     </div>
                                 </div>
-                                <div class="ml-5 w-0 flex-1">
-                                    <dl>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Success Rate</dt>
-                                        <dd class="text-lg font-medium text-gray-900 dark:text-white">
-                                            {{ getSuccessRate() }}%
-                                        </dd>
-                                    </dl>
-                                </div>
                             </div>
-                        </div>
-                    </div>
+                        </CardHeader>
+                    </Card>
 
-                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                        <div class="p-5">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0">
-                                    <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                                        <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
+                    <Card class="shadow-sm">
+                        <CardHeader class="pb-2">
+                            <div class="flex items-center gap-3">
+                                <div class="h-9 w-9 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+                                    <Clock class="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <div>
+                                    <CardTitle class="text-sm font-medium text-gray-500 dark:text-gray-400">Avg Response</CardTitle>
+                                    <div class="text-xl font-semibold text-gray-900 dark:text-white">
+                                        {{ getAverageResponseTime() }}ms
                                     </div>
                                 </div>
-                                <div class="ml-5 w-0 flex-1">
-                                    <dl>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Avg Response</dt>
-                                        <dd class="text-lg font-medium text-gray-900 dark:text-white">
-                                            {{ getAverageResponseTime() }}ms
-                                        </dd>
-                                    </dl>
-                                </div>
                             </div>
-                        </div>
-                    </div>
+                        </CardHeader>
+                    </Card>
 
-                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                        <div class="p-5">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0">
-                                    <div class="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
-                                        <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                        </svg>
+                    <Card class="shadow-sm">
+                        <CardHeader class="pb-2">
+                            <div class="flex items-center gap-3">
+                                <div class="h-9 w-9 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+                                    <AlertTriangle class="h-5 w-5 text-red-600 dark:text-red-400" />
+                                </div>
+                                <div>
+                                    <CardTitle class="text-sm font-medium text-gray-500 dark:text-gray-400">Active Issues</CardTitle>
+                                    <div class="text-xl font-semibold text-gray-900 dark:text-white">
+                                        {{ currentStatus.bpjs.filter(e => e.status !== 'success').length + currentStatus.baseline.filter(e => e.status !== 'success').length }}
                                     </div>
                                 </div>
-                                <div class="ml-5 w-0 flex-1">
-                                    <dl>
-                                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Active Issues</dt>
-                                        <dd class="text-lg font-medium text-gray-900 dark:text-white">
-                                            {{ currentStatus.bpjs.filter(e => e.status !== 'success').length + currentStatus.baseline.filter(e => e.status !== 'success').length }}
-                                        </dd>
-                                    </dl>
-                                </div>
                             </div>
-                        </div>
-                    </div>
+                        </CardHeader>
+                    </Card>
                 </div>
 
                 <!-- Main Content Grid -->
                 <div class="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
                     
                     <!-- BPJS Endpoints Panel -->
-                    <div class="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                            <h3 class="text-lg font-medium text-gray-900 dark:text-white">BPJS Endpoints</h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">Healthcare system monitoring</p>
-                        </div>
-                        <div class="p-6">
+                    <Card class="shadow-sm">
+                        <CardHeader>
+                            <CardTitle>BPJS Endpoints</CardTitle>
+                            <CardDescription>Healthcare system monitoring</CardDescription>
+                        </CardHeader>
+                        <CardContent>
                             <div class="space-y-4">
                                 <div v-for="endpoint in currentStatus.bpjs" :key="endpoint.name" 
-                                     class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                     class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                                     <div class="flex-1">
                                         <div class="flex items-center">
                                             <h4 class="text-sm font-medium text-gray-900 dark:text-white">{{ endpoint.name }}</h4>
@@ -376,7 +358,7 @@ onMounted(() => {
                                         </div>
                                     </div>
                                     <div class="ml-4">
-                                        <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="endpoint.status === 'success' ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'">
+                                        <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="endpoint.status === 'success' ? 'bg-emerald-100 dark:bg-emerald-900' : 'bg-red-100 dark:bg-red-900'">
                                             <svg v-if="endpoint.status === 'success'" class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                             </svg>
@@ -387,19 +369,19 @@ onMounted(() => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
 
                     <!-- Baseline Endpoints Panel -->
-                    <div class="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                            <h3 class="text-lg font-medium text-gray-900 dark:text-white">Baseline Endpoints</h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">Network reference monitoring</p>
-                        </div>
-                        <div class="p-6">
+                    <Card class="shadow-sm">
+                        <CardHeader>
+                            <CardTitle>Baseline Endpoints</CardTitle>
+                            <CardDescription>Network reference monitoring</CardDescription>
+                        </CardHeader>
+                        <CardContent>
                             <div class="space-y-4">
                                 <div v-for="endpoint in currentStatus.baseline" :key="endpoint.name" 
-                                     class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                     class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                                     <div class="flex-1">
                                         <div class="flex items-center">
                                             <h4 class="text-sm font-medium text-gray-900 dark:text-white">{{ endpoint.name }}</h4>
@@ -416,7 +398,7 @@ onMounted(() => {
                                         </div>
                                     </div>
                                     <div class="ml-4">
-                                        <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="endpoint.status === 'success' ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'">
+                                        <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="endpoint.status === 'success' ? 'bg-emerald-100 dark:bg-emerald-900' : 'bg-red-100 dark:bg-red-900'">
                                             <svg v-if="endpoint.status === 'success'" class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                             </svg>
@@ -427,37 +409,35 @@ onMounted(() => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
 
                     <!-- Custom Endpoints Panel -->
-                    <div class="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <Card class="shadow-sm">
+                        <CardHeader>
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Custom Endpoints</h3>
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">User-defined endpoint monitoring</p>
+                                    <CardTitle>Custom Endpoints</CardTitle>
+                                    <CardDescription>User-defined endpoint monitoring</CardDescription>
                                 </div>
                                 <span class="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-1 rounded-full">
                                     {{ customEndpoints.length }} endpoints
                                 </span>
                             </div>
-                        </div>
-                        <div class="p-6">
+                        </CardHeader>
+                        <CardContent>
                             <div v-if="customEndpoints.length === 0" class="text-center py-8">
-                                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                                </svg>
+                                <Plus class="mx-auto h-12 w-12 text-gray-400" />
                                 <h4 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">No custom endpoints</h4>
                                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by adding your first custom endpoint.</p>
-                                <button @click="showAddEndpointModal = true" 
-                                        class="mt-4 inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800">
+                                <Button class="mt-4" @click="showAddEndpointModal = true">
+                                    <Plus class="w-4 h-4 mr-2" />
                                     Add Custom Endpoint
-                                </button>
+                                </Button>
                             </div>
                             <div v-else class="space-y-4">
                                 <div v-for="endpoint in customEndpoints" :key="endpoint.id" 
-                                     class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                     class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                                     <div class="flex-1">
                                         <div class="flex items-center">
                                             <h4 class="text-sm font-medium text-gray-900 dark:text-white">{{ endpoint.name }}</h4>
@@ -477,20 +457,12 @@ onMounted(() => {
                                         </div>
                                     </div>
                                     <div class="flex items-center space-x-2 ml-4">
-                                        <button @click="testCustomEndpoint(endpoint)" 
-                                                class="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400" 
-                                                title="Test endpoint">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                                            </svg>
-                                        </button>
-                                        <button @click="removeCustomEndpoint(endpoint.id)" 
-                                                class="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                                                title="Remove endpoint">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                                            </svg>
-                                        </button>
+                                        <Button @click="testCustomEndpoint(endpoint)" variant="ghost" size="sm" title="Test endpoint">
+                                            <RefreshCw class="w-4 h-4" />
+                                        </Button>
+                                        <Button @click="removeCustomEndpoint(endpoint.id)" variant="ghost" size="sm" class="text-red-600" title="Remove endpoint">
+                                            <AlertTriangle class="w-4 h-4" />
+                                        </Button>
                                         <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="endpoint.status === 'success' ? 'bg-green-100 dark:bg-green-900' : endpoint.status === 'testing' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-red-100 dark:bg-red-900'">
                                             <svg v-if="endpoint.status === 'success'" class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
@@ -506,19 +478,19 @@ onMounted(() => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
                 <!-- Performance Analysis -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <!-- Latency Analysis -->
-                    <div class="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                            <h3 class="text-lg font-medium text-gray-900 dark:text-white">Latency Analysis</h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">Performance comparison metrics</p>
-                        </div>
-                        <div class="p-6">
+                    <Card class="shadow-sm">
+                        <CardHeader>
+                            <CardTitle>Latency Analysis</CardTitle>
+                            <CardDescription>Performance comparison metrics</CardDescription>
+                        </CardHeader>
+                        <CardContent>
                             <div class="grid grid-cols-2 gap-6 mb-6">
                                 <div class="text-center">
                                     <div class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">BPJS Average</div>
@@ -544,23 +516,23 @@ onMounted(() => {
                                     </span>
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
 
                     <!-- Network Diagnosis -->
-                    <div class="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
-                        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                            <h3 class="text-lg font-medium text-gray-900 dark:text-white">Network Diagnosis</h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">System analysis and recommendations</p>
-                        </div>
-                        <div class="p-6">
+                    <Card class="shadow-sm">
+                        <CardHeader>
+                            <CardTitle>Network Diagnosis</CardTitle>
+                            <CardDescription>System analysis and recommendations</CardDescription>
+                        </CardHeader>
+                        <CardContent>
                             <div class="space-y-6">
                                 <!-- Current Diagnosis -->
                                 <div>
                                     <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Current Status</h4>
                                     <div class="space-y-2">
                                         <div v-for="(item, index) in diagnosis" :key="index" 
-                                             class="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                             class="flex items-start space-x-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                                             <div class="flex-shrink-0 w-5 h-5 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mt-0.5">
                                                 <div class="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
                                             </div>
@@ -574,7 +546,7 @@ onMounted(() => {
                                     <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Recommendations</h4>
                                     <div class="space-y-2">
                                         <div v-for="(item, index) in recommendations" :key="index" 
-                                             class="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                             class="flex items-start space-x-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                                             <div class="flex-shrink-0 w-5 h-5 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mt-0.5">
                                                 <div class="w-2 h-2 bg-green-600 dark:bg-green-400 rounded-full"></div>
                                             </div>
@@ -583,61 +555,60 @@ onMounted(() => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
             </div>
         </div>
 
         <!-- Add Custom Endpoint Modal -->
-        <div v-if="showAddEndpointModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-lg bg-white dark:bg-gray-800">
-                <div class="mt-3">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Add Custom Endpoint</h3>
-                        <button @click="showAddEndpointModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div v-if="showAddEndpointModal" class="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50" @click.self="showAddEndpointModal = false">
+            <div class="relative top-20 mx-auto w-full max-w-md px-4">
+                <Card class="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                    <CardHeader class="flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle>Add Custom Endpoint</CardTitle>
+                            <CardDescription>Quickly add an endpoint for testing</CardDescription>
+                        </div>
+                        <Button variant="ghost" size="icon" @click="showAddEndpointModal = false">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                             </svg>
-                        </button>
-                    </div>
-                    <form @submit.prevent="addCustomEndpoint" class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-                            <input v-model="newEndpoint.name" type="text" required 
-                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                                   placeholder="e.g., My API Endpoint">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
-                            <input v-model="newEndpoint.url" type="url" required 
-                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                                   placeholder="https://api.example.com/health">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Method</label>
-                            <select v-model="newEndpoint.method" 
-                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
-                                <option value="GET">GET</option>
-                                <option value="POST">POST</option>
-                                <option value="PUT">PUT</option>
-                                <option value="PATCH">PATCH</option>
-                                <option value="DELETE">DELETE</option>
-                            </select>
-                        </div>
-                        <div class="flex justify-end space-x-3 pt-4">
-                            <button type="button" @click="showAddEndpointModal = false" 
-                                    class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 rounded-md">
-                                Cancel
-                            </button>
-                            <button type="submit" 
-                                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md">
-                                Add Endpoint
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                        </Button>
+                    </CardHeader>
+                    <CardContent>
+                        <form @submit.prevent="addCustomEndpoint" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                                <input v-model="newEndpoint.name" type="text" required 
+                                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                                       placeholder="e.g., My API Endpoint">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
+                                <input v-model="newEndpoint.url" type="url" required 
+                                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                                       placeholder="https://api.example.com/health">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Method</label>
+                                <select v-model="newEndpoint.method" 
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                                    <option value="GET">GET</option>
+                                    <option value="POST">POST</option>
+                                    <option value="PUT">PUT</option>
+                                    <option value="PATCH">PATCH</option>
+                                    <option value="DELETE">DELETE</option>
+                                </select>
+                            </div>
+                            <div class="flex justify-end space-x-3 pt-2">
+                                <Button type="button" variant="outline" @click="showAddEndpointModal = false">Cancel</Button>
+                                <Button type="submit">Add Endpoint</Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
             </div>
         </div>
     </AppLayout>
