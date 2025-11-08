@@ -1,0 +1,383 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
+use Carbon\Carbon;
+use App\Helpers\FonnteWhatsapp;
+
+class BpjsMonitoringControllerDebug extends Controller
+{
+    // Kredensial BPJS
+    private $api_url = 'https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/';
+    private $consid = '17432';
+    private $secretkey = '3nK53BBE23';
+    private $user_key = '1823bb1d8015aee02180ee12d2af2b2c';
+
+    public function index()
+    {
+        return Inertia::render('Dashboard');
+    }
+
+    public function getMonitoringData()
+    {
+        try {
+            // Endpoint list dengan campuran BPJS dan baseline endpoints
+            $endpoints = [
+                // BPJS Endpoints
+                ['name' => 'BPJS Diagnosa', 'url' => $this->api_url . 'referensi/diagnosa/A00', 'description' => 'Referensi data diagnosa BPJS', 'type' => 'bpjs'],
+                ['name' => 'BPJS Poli', 'url' => $this->api_url . 'referensi/poli/INT', 'description' => 'Referensi data poli BPJS', 'type' => 'bpjs'],
+                ['name' => 'BPJS Faskes', 'url' => $this->api_url . 'referensi/faskes/0101R001/1', 'description' => 'Referensi data fasilitas kesehatan BPJS', 'type' => 'bpjs'],
+                
+                // Baseline Public Endpoints untuk perbandingan
+                ['name' => 'Google DNS', 'url' => 'https://dns.google/resolve?name=google.com&type=A', 'description' => 'Google Public DNS API', 'type' => 'baseline'],
+                ['name' => 'Cloudflare DNS', 'url' => 'https://cloudflare-dns.com/dns-query?name=cloudflare.com&type=A', 'description' => 'Cloudflare DNS over HTTPS', 'type' => 'baseline'],
+                ['name' => 'JSONPlaceholder', 'url' => 'https://jsonplaceholder.typicode.com/posts/1', 'description' => 'Test JSON API', 'type' => 'baseline'],
+                ['name' => 'HTTPBin Status', 'url' => 'https://httpbin.org/status/200', 'description' => 'HTTP status test endpoint', 'type' => 'baseline'],
+                ['name' => 'GitHub API', 'url' => 'https://api.github.com/zen', 'description' => 'GitHub API health check', 'type' => 'baseline']
+            ];
+
+            $results = [];
+            $success = 0;
+            $error = 0;
+            $total_response_time = 0;
+            $bpjs_success = 0;
+            $bpjs_error = 0;
+            $baseline_success = 0;
+            $baseline_error = 0;
+
+            foreach ($endpoints as $endpoint) {
+                $start = microtime(true);
+                
+                try {
+                    // Cek apakah ini BPJS endpoint atau baseline
+                    $isBpjsEndpoint = ($endpoint['type'] === 'bpjs');
+                    
+                    if ($isBpjsEndpoint) {
+                        // Untuk BPJS endpoints, gunakan headers authentication
+                        $headers = $this->getBpjsHeaders();
+                        $response = Http::timeout(10)
+                            ->withHeaders($headers)
+                            ->get($endpoint['url']);
+                    } else {
+                        // Untuk baseline endpoints, request sederhana
+                        $response = Http::timeout(10)
+                            ->withHeaders([
+                                'User-Agent' => 'BPJS-Monitoring/1.0',
+                                'Accept' => 'application/json'
+                            ])
+                            ->get($endpoint['url']);
+                    }
+
+                    $end = microtime(true);
+                    $response_time = round(($end - $start) * 1000, 2);
+                    
+                    if ($response->successful()) {
+                        if ($isBpjsEndpoint) {
+                            // Parse BPJS response
+                            $json = $response->json();
+                            $code = $json['metaData']['code'] ?? $response->status();
+                            $message = $json['metaData']['message'] ?? $response->reason();
+                        } else {
+                            // Parse baseline response
+                            $code = $response->status();
+                            $message = $response->reason() ?? 'OK';
+                        }
+                        
+                        if ($code == 200 || $code == '200') {
+                            $success++;
+                            $status = 'success';
+                            
+                            // Update counter berdasarkan type
+                            if ($isBpjsEndpoint) {
+                                $bpjs_success++;
+                            } else {
+                                $baseline_success++;
+                            }
+                        } else {
+                            $error++;
+                            $status = 'error';
+                            
+                            // Update counter berdasarkan type
+                            if ($isBpjsEndpoint) {
+                                $bpjs_error++;
+                            } else {
+                                $baseline_error++;
+                            }
+                            
+                            // Kirim notifikasi WhatsApp hanya untuk BPJS endpoints error
+                            if ($isBpjsEndpoint && in_array($code, [201, '201', 404, '404'])) {
+                                FonnteWhatsapp::sendEndpointAlert($endpoint['name'], $code, $message, $endpoint['url'], 30);
+                            }
+                            
+                            // Untuk baseline endpoints error, kirim alert khusus (ini menandakan masalah internet)
+                            if (!$isBpjsEndpoint && in_array($code, [404, '404', 500, '500'])) {
+                                FonnteWhatsapp::sendCriticalAlert("Internet/Baseline", "Baseline endpoint failed: " . $endpoint['name'] . " - " . $message, $endpoint['url'], 60);
+                            }
+                        }
+                    } else {
+                        $error++;
+                        $status = 'error';
+                        $code = $response->status();
+                        $message = $response->reason();
+                        
+                        // Update counter berdasarkan type
+                        if ($isBpjsEndpoint) {
+                            $bpjs_error++;
+                        } else {
+                            $baseline_error++;
+                        }
+                        
+                        // Kirim notifikasi berdasarkan type endpoint
+                        if ($isBpjsEndpoint && in_array($code, [201, '201', 404, '404'])) {
+                            FonnteWhatsapp::sendEndpointAlert($endpoint['name'], $code, $message, $endpoint['url'], 30);
+                        } elseif (!$isBpjsEndpoint) {
+                            FonnteWhatsapp::sendCriticalAlert("Internet/Baseline", "Baseline endpoint failed: " . $endpoint['name'] . " - code: $code", $endpoint['url'], 60);
+                        }
+                    }
+
+                } catch (\Exception $e) {
+                    $end = microtime(true);
+                    $response_time = round(($end - $start) * 1000, 2);
+                    $code = 'ERROR';
+                    $message = $e->getMessage();
+                    $status = 'error';
+                    $error++;
+                    
+                    // Update counter berdasarkan type
+                    $isBpjsEndpoint = ($endpoint['type'] === 'bpjs');
+                    if ($isBpjsEndpoint) {
+                        $bpjs_error++;
+                    } else {
+                        $baseline_error++;
+                    }
+                    
+                    // Kirim notifikasi WhatsApp untuk critical error/exception berdasarkan type
+                    if ($isBpjsEndpoint) {
+                        FonnteWhatsapp::sendCriticalAlert($endpoint['name'], $message, $endpoint['url'], 60);
+                    } else {
+                        FonnteWhatsapp::sendCriticalAlert("Internet/Baseline", "Connection failed to " . $endpoint['name'] . ": " . $message, $endpoint['url'], 60);
+                    }
+                }
+
+                // Determine severity based on response time
+                $severity = 'excellent';
+                if ($response_time >= 2000) {
+                    $severity = 'critical';
+                    // Kirim notifikasi untuk response time critical (>= 2000ms) dengan cooldown 2 jam
+                    FonnteWhatsapp::sendSlowResponseAlert($endpoint['name'], $response_time, $endpoint['url'], 120);
+                } elseif ($response_time >= 1000) {
+                    $severity = 'slow';
+                } elseif ($response_time >= 500) {
+                    $severity = 'good';
+                }
+
+                $results[] = [
+                    'name' => $endpoint['name'],
+                    'url' => $endpoint['url'],
+                    'response_time' => $response_time,
+                    'code' => $code,
+                    'message' => $message,
+                    'status' => $status,
+                    'severity' => $severity,
+                    'description' => $endpoint['description'],
+                    'type' => $endpoint['type'] // Tambahkan type untuk frontend
+                ];
+
+                $total_response_time += $response_time;
+            }
+
+            $total = count($results);
+            $avg_response_time = $total > 0 ? round($total_response_time / $total, 2) : 0;
+
+            return response()->json([
+                'summary' => [
+                    'total' => $total,
+                    'success' => $success, 
+                    'error' => $error,
+                    'avg_response_time' => $avg_response_time,
+                    'uptime_percentage' => $total > 0 ? round(($success / $total) * 100, 2) : 0,
+                    
+                    // Statistik terpisah untuk BPJS dan Baseline
+                    'bpjs' => [
+                        'success' => $bpjs_success,
+                        'error' => $bpjs_error,
+                        'total' => $bpjs_success + $bpjs_error,
+                        'uptime_percentage' => ($bpjs_success + $bpjs_error) > 0 ? round(($bpjs_success / ($bpjs_success + $bpjs_error)) * 100, 2) : 0
+                    ],
+                    'baseline' => [
+                        'success' => $baseline_success,
+                        'error' => $baseline_error,  
+                        'total' => $baseline_success + $baseline_error,
+                        'uptime_percentage' => ($baseline_success + $baseline_error) > 0 ? round(($baseline_success / ($baseline_success + $baseline_error)) * 100, 2) : 0
+                    ]
+                ],
+                'endpoints' => $results,
+                'alerts' => [],
+                'statistics' => [
+                    'hourly_data' => [],
+                    'trends' => [
+                        'response_time_trend' => 'stable',
+                        'uptime_trend' => 'stable'
+                    ]
+                ],
+                'timestamp' => Carbon::now()->format('Y-m-d H:i:s')
+            ]);
+            
+            // Diagnosis dan alert jika ada masalah
+            $bpjsHasError = $bpjs_error > 0;
+            $baselineHasError = $baseline_error > 0;
+            
+            if ($bpjsHasError || $baselineHasError) {
+                $bpjsStatus = $bpjsHasError ? 'error' : 'success';
+                $baselineStatus = $baselineHasError ? 'error' : 'success';
+                
+                // Kirim diagnosis alert
+                FonnteWhatsapp::sendDiagnosisAlert($bpjsStatus, $baselineStatus, 90);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('BPJS Monitoring Error: ' . $e->getMessage());
+            
+            return response()->json([
+                'error' => true,
+                'message' => $e->getMessage(),
+                'summary' => [
+                    'total' => 0,
+                    'success' => 0,
+                    'error' => 0,
+                    'avg_response_time' => 0,
+                    'uptime_percentage' => 0
+                ],
+                'endpoints' => [],
+                'alerts' => [],
+                'statistics' => [
+                    'hourly_data' => [],
+                    'trends' => []
+                ]
+            ], 500);
+        }
+    }
+
+    public function testCustomEndpoint(Request $request)
+    {
+        $request->validate([
+            'url' => 'required|url',
+            'method' => 'sometimes|string|in:GET,POST,PUT,DELETE,PATCH',
+            'timeout' => 'sometimes|integer|min:1|max:60'
+        ]);
+
+        $url = $request->input('url');
+        $method = $request->input('method', 'GET');
+        $timeout = $request->input('timeout', 10);
+        
+        $start = microtime(true);
+        
+        try {
+            // Check if this is a BPJS endpoint
+            $isBpjsEndpoint = $this->isBpjsEndpoint($url);
+            
+            if ($isBpjsEndpoint) {
+                // For BPJS endpoints, use proper authentication headers
+                $headers = $this->getBpjsHeaders();
+                
+                $response = Http::withHeaders($headers)
+                    ->timeout($timeout)
+                    ->get($url);
+            } else {
+                // For other endpoints, simple request
+                $response = Http::timeout($timeout)->get($url);
+            }
+            
+            $end = microtime(true);
+            $responseTime = round(($end - $start) * 1000); // Convert to milliseconds
+            
+            $severity = $this->getSeverityFromResponseTime($responseTime);
+            
+            // For BPJS endpoints, check the metaData structure
+            if ($isBpjsEndpoint && $response->successful()) {
+                $json = $response->json();
+                $code = $json['metaData']['code'] ?? $response->status();
+                $message = $json['metaData']['message'] ?? $response->reason();
+                $status = ($code == 200 || $code == '200') ? 'success' : 'error';
+                
+                // Kirim notifikasi jika code 201 atau 404 (BPJS endpoint) dengan cooldown 30 menit
+                if (in_array($code, [201, '201', 404, '404'])) {
+                    FonnteWhatsapp::sendEndpointAlert("Custom Test BPJS", $code, $message, $url, 30);
+                }
+            } else {
+                $code = $response->status();
+                $message = $response->reason() ?? 'OK';
+                $status = $response->successful() ? 'success' : 'error';
+                
+                // Kirim notifikasi jika code 201 atau 404 (Non-BPJS endpoint) dengan cooldown 30 menit
+                if (in_array($code, [201, '201', 404, '404'])) {
+                    FonnteWhatsapp::sendEndpointAlert("Custom Test", $code, $message, $url, 30);
+                }
+            }
+            
+            return response()->json([
+                'response_time' => $responseTime,
+                'code' => $code,
+                'message' => $message,
+                'status' => $status,
+                'severity' => $severity,
+                'body_preview' => $this->getBodyPreview($response->body()),
+                'is_bpjs' => $isBpjsEndpoint
+            ]);
+            
+        } catch (\Exception $e) {
+            $end = microtime(true);
+            $responseTime = round(($end - $start) * 1000);
+            
+            // Kirim notifikasi WhatsApp untuk critical error/exception dengan cooldown 60 menit
+            FonnteWhatsapp::sendCriticalAlert("Custom Test", $e->getMessage(), $url, 60);
+            
+            return response()->json([
+                'response_time' => $responseTime,
+                'code' => 'ERROR',
+                'message' => $e->getMessage(),
+                'status' => 'error',
+                'severity' => 'critical',
+                'error_type' => 'general_exception'
+            ], 500);
+        }
+    }
+
+    private function isBpjsEndpoint(string $url): bool
+    {
+        return strpos($url, 'bpjs-kesehatan.go.id') !== false;
+    }
+
+    private function getBpjsHeaders(): array
+    {
+        date_default_timezone_set('UTC');
+        $tStamp = strval(time() - strtotime("1970-01-01 00:00:00"));
+        $signature = base64_encode(hash_hmac('sha256', $this->consid . '&' . $tStamp, $this->secretkey, true));
+        
+        return [
+            'X-cons-id' => $this->consid,
+            'X-timestamp' => $tStamp,
+            'X-signature' => $signature,
+            'user_key' => $this->user_key,
+            'Content-Type' => 'application/json',
+        ];
+    }
+
+    private function getSeverityFromResponseTime(int $responseTime): string
+    {
+        if ($responseTime >= 2000) return 'critical';
+        if ($responseTime >= 1000) return 'slow';  
+        if ($responseTime >= 500) return 'good';
+        return 'excellent';
+    }
+
+    private function getBodyPreview(string $body): string
+    {
+        // Return first 200 characters of response body for preview
+        return strlen($body) > 200 ? substr($body, 0, 200) . '...' : $body;
+    }
+}

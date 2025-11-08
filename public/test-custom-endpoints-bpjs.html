@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BPJS Monitoring Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div id="app" class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">BPJS Monitoring LocalStorage Test</h1>
+        
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">System Status</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="p-4 bg-blue-50 rounded">
+                    <h3 class="font-medium">LocalStorage Support</h3>
+                    <p class="text-sm" :class="localStorageSupported ? 'text-green-600' : 'text-red-600'">
+                        {{ localStorageSupported ? '✅ Supported' : '❌ Not Supported' }}
+                    </p>
+                </div>
+                <div class="p-4 bg-green-50 rounded">
+                    <h3 class="font-medium">Custom Endpoints</h3>
+                    <p class="text-sm text-gray-600">{{ customEndpoints.length }} endpoints stored</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Custom Endpoints Management</h2>
+                <button 
+                    @click="showAddModal = true"
+                    class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                    Add Endpoint
+                </button>
+            </div>
+            
+            <div v-if="customEndpoints.length > 0" class="space-y-2">
+                <div v-for="endpoint in customEndpoints" :key="endpoint.id" 
+                     class="flex items-center justify-between p-3 border rounded">
+                    <div>
+                        <h3 class="font-medium">{{ endpoint.name }}</h3>
+                        <p class="text-sm text-gray-500">{{ endpoint.url }}</p>
+                        <span class="text-xs px-2 py-1 bg-gray-100 rounded">
+                            {{ endpoint.isBpjsEndpoint ? 'BPJS Endpoint (with auth)' : 'External Endpoint' }}
+                        </span>
+                    </div>
+                    <div class="space-x-2">
+                        <button 
+                            @click="testEndpoint(endpoint)"
+                            class="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600"
+                        >
+                            Test
+                        </button>
+                        <button 
+                            @click="deleteEndpoint(endpoint.id)"
+                            class="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
+                        >
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div v-else class="text-center py-8 text-gray-500">
+                No custom endpoints yet. Click "Add Endpoint" to get started.
+            </div>
+        </div>
+
+        <div v-if="testResult" class="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Test Result</h2>
+            <div class="bg-gray-50 p-4 rounded">
+                <pre>{{ JSON.stringify(testResult, null, 2) }}</pre>
+            </div>
+        </div>
+
+        <!-- Add Endpoint Modal -->
+        <div v-if="showAddModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                <h3 class="text-lg font-semibold mb-4">Add Custom Endpoint</h3>
+                
+                <form @submit.prevent="addEndpoint" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Name</label>
+                        <input 
+                            v-model="newEndpoint.name" 
+                            type="text" 
+                            required 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            placeholder="Endpoint name"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">URL</label>
+                        <input 
+                            v-model="newEndpoint.url" 
+                            type="url" 
+                            required 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            placeholder="https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/..."
+                        />
+                        <p class="text-xs text-gray-500 mt-1">
+                            💡 BPJS endpoints akan otomatis menggunakan authentication (consid, secretkey, userkey)
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Description</label>
+                        <input 
+                            v-model="newEndpoint.description" 
+                            type="text" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            placeholder="Brief description"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Timeout (seconds)</label>
+                        <input 
+                            v-model.number="newEndpoint.timeout" 
+                            type="number" 
+                            min="1" 
+                            max="60" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                    </div>
+                    
+                    <div class="flex justify-end space-x-2 pt-4">
+                        <button type="button" @click="showAddModal = false" 
+                                class="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button type="submit" 
+                                class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                            Add Endpoint
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, computed } = Vue;
+        
+        createApp({
+            setup() {
+                const localStorageSupported = ref(false);
+                const customEndpoints = ref([]);
+                const showAddModal = ref(false);
+                const testResult = ref(null);
+                const newEndpoint = ref({
+                    name: '',
+                    url: '',
+                    description: '',
+                    timeout: 10
+                });
+
+                const checkLocalStorage = () => {
+                    try {
+                        localStorage.setItem('test', 'test');
+                        localStorage.removeItem('test');
+                        localStorageSupported.value = true;
+                    } catch (e) {
+                        localStorageSupported.value = false;
+                    }
+                };
+
+                const loadCustomEndpoints = () => {
+                    const stored = localStorage.getItem('bpjs_custom_endpoints');
+                    if (stored) {
+                        try {
+                            customEndpoints.value = JSON.parse(stored);
+                        } catch (e) {
+                            console.error('Error loading custom endpoints:', e);
+                            customEndpoints.value = [];
+                        }
+                    }
+                };
+
+                const saveCustomEndpoints = () => {
+                    localStorage.setItem('bpjs_custom_endpoints', JSON.stringify(customEndpoints.value));
+                };
+
+                const addEndpoint = () => {
+                    const endpoint = {
+                        id: Date.now().toString(),
+                        name: newEndpoint.value.name,
+                        url: newEndpoint.value.url,
+                        description: newEndpoint.value.description,
+                        method: 'GET',
+                        headers: {},
+                        timeout: newEndpoint.value.timeout,
+                        isActive: true,
+                        isBpjsEndpoint: newEndpoint.value.url.includes('bpjs-kesehatan.go.id'),
+                        useProxy: newEndpoint.value.url.includes('bpjs-kesehatan.go.id')
+                    };
+
+                    customEndpoints.value.push(endpoint);
+                    saveCustomEndpoints();
+                    
+                    // Reset form
+                    newEndpoint.value = {
+                        name: '',
+                        url: '',
+                        description: '',
+                        timeout: 10
+                    };
+                    
+                    showAddModal.value = false;
+                };
+
+                const deleteEndpoint = (id) => {
+                    customEndpoints.value = customEndpoints.value.filter(ep => ep.id !== id);
+                    saveCustomEndpoints();
+                };
+
+                const testEndpoint = async (endpoint) => {
+                    testResult.value = { loading: true };
+                    
+                    try {
+                        const response = await fetch('/bpjs-monitoring/test-custom-endpoint', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                            },
+                            body: JSON.stringify({
+                                url: endpoint.url,
+                                method: endpoint.method || 'GET',
+                                timeout: endpoint.timeout || 10,
+                                headers: endpoint.headers || {}
+                            })
+                        });
+
+                        const result = await response.json();
+                        testResult.value = {
+                            ...result,
+                            endpoint_name: endpoint.name,
+                            endpoint_url: endpoint.url,
+                            is_bpjs_endpoint: endpoint.isBpjsEndpoint,
+                            authentication_used: endpoint.isBpjsEndpoint ? 'BPJS (consid, secretkey, userkey)' : 'None'
+                        };
+                    } catch (err) {
+                        testResult.value = {
+                            error: err.message,
+                            endpoint_name: endpoint.name,
+                            endpoint_url: endpoint.url
+                        };
+                    }
+                };
+
+                onMounted(() => {
+                    checkLocalStorage();
+                    loadCustomEndpoints();
+                });
+
+                return {
+                    localStorageSupported,
+                    customEndpoints,
+                    showAddModal,
+                    testResult,
+                    newEndpoint,
+                    addEndpoint,
+                    deleteEndpoint,
+                    testEndpoint
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

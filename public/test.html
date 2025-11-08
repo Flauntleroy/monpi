@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BPJS Monitoring Test</title>
+    <script>
+        async function testEndpoint() {
+            try {
+                console.log('Testing endpoint...');
+                const response = await fetch('/bpjs-monitoring/data');
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                const text = await response.text();
+                console.log('Raw response:', text);
+                
+                // Try to parse as JSON
+                try {
+                    const data = JSON.parse(text);
+                    console.log('Parsed JSON:', data);
+                    document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                } catch (e) {
+                    console.log('Not valid JSON:', e);
+                    document.getElementById('result').innerHTML = '<pre>Raw response:\n' + text + '</pre>';
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                document.getElementById('result').innerHTML = '<pre>Error: ' + error.message + '</pre>';
+            }
+        }
+        
+        // Test when page loads
+        window.onload = function() {
+            testEndpoint();
+        };
+    </script>
+</head>
+<body>
+    <h1>BPJS Monitoring API Test</h1>
+    <button onclick="testEndpoint()">Test Endpoint</button>
+    <div id="result">Loading...</div>
+</body>
+</html>
