@@ -19,15 +19,17 @@ import {
   Settings,
   Trash2,
   Edit,
-  Shield
+  Shield,
+  MoreVertical
 } from 'lucide-vue-next';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 
 interface CustomEndpoint {
   id: string;
   name: string;
   url: string;
   description: string;
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PING';
   headers?: Record<string, string>;
   timeout?: number;
   isActive: boolean;
@@ -774,8 +776,9 @@ onUnmounted(() => {
           <div class="text-sm text-gray-500 dark:text-gray-400">
             Last updated: {{ lastUpdate }}
           </div>
-          
-          <div class="flex items-center space-x-2">
+
+          <!-- Desktop actions -->
+          <div class="hidden md:flex items-center space-x-2">
             <Button @click="showAddEndpointModal = true" size="sm" class="flex items-center space-x-1">
               <Plus class="w-4 h-4" />
               <span>Add Endpoint</span>
@@ -795,6 +798,37 @@ onUnmounted(() => {
               <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': isLoading }" />
               <span>Refresh</span>
             </Button>
+          </div>
+
+          <!-- Mobile dropdown actions -->
+          <div class="md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  class="h-12 w-12 p-0 inline-flex items-center justify-center"
+                  aria-label="Actions"
+                >
+                  <MoreVertical class="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" class="w-56">
+                <DropdownMenuItem @click="showAddEndpointModal = true">
+                  <Plus class="w-4 h-4 mr-2" />
+                  Add Endpoint
+                </DropdownMenuItem>
+                <DropdownMenuItem @click="showManageEndpointsModal = true">
+                  <Settings class="w-4 h-4 mr-2" />
+                  Manage ({{ customEndpoints.length }})
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem @click="fetchMonitoringData" :disabled="isLoading">
+                  <RefreshCw :class="{ 'animate-spin': isLoading }" class="w-4 h-4 mr-2" />
+                  Refresh
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
@@ -822,8 +856,64 @@ onUnmounted(() => {
 
         <!-- Main Content -->
         <div v-if="monitoringData" class="space-y-6">
-          <!-- Summary Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <!-- Summary Cards: Mobile slider -->
+          <div class="md:hidden">
+            <div class="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2">
+              <Card class="min-w-full snap-start">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle class="text-sm font-medium">Total Endpoints</CardTitle>
+                  <Activity class="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div class="text-2xl font-bold">{{ monitoringData.summary.total }}</div>
+                  <p class="text-xs text-muted-foreground">Monitored endpoints</p>
+                </CardContent>
+              </Card>
+
+              <Card class="min-w-full snap-start">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle class="text-sm font-medium">Uptime</CardTitle>
+                  <CheckCircle class="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div class="text-2xl font-bold text-green-600">{{ monitoringData.summary.uptime_percentage }}%</div>
+                  <p class="text-xs text-muted-foreground">Current status</p>
+                </CardContent>
+              </Card>
+
+              <Card class="min-w-full snap-start">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle class="text-sm font-medium">Avg Response Time</CardTitle>
+                  <Zap class="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div class="text-2xl font-bold" :class="getResponseTimeColor(monitoringData.summary.avg_response_time)">
+                    {{ monitoringData.summary.avg_response_time }}ms
+                  </div>
+                  <p class="text-xs text-muted-foreground">Current average</p>
+                </CardContent>
+              </Card>
+
+              <Card class="min-w-full snap-start">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle class="text-sm font-medium">Status</CardTitle>
+                  <Activity class="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div class="flex items-center space-x-2">
+                    <CheckCircle class="h-5 w-5 text-green-500" />
+                    <span class="text-lg font-semibold text-green-600">{{ monitoringData.summary.success }}</span>
+                    <XCircle class="h-5 w-5 text-red-500 ml-2" />
+                    <span class="text-lg font-semibold text-red-600">{{ monitoringData.summary.error }}</span>
+                  </div>
+                  <p class="text-xs text-muted-foreground">Success vs Error</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <!-- Summary Cards: Desktop grid -->
+          <div class="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card>
               <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle class="text-sm font-medium">Total Endpoints</CardTitle>

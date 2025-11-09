@@ -17,7 +17,7 @@ const width = computed(() => {
   <div
     data-slot="sidebar-menu-skeleton"
     data-sidebar="menu-skeleton"
-    :class="cn('flex h-8 items-center gap-2 rounded-md px-2', props.class)"
+    :class="cn('flex h-12 md:h-8 items-center gap-3 md:gap-2 rounded-md px-3 md:px-2', props.class)"
   >
     <Skeleton
       v-if="showIcon"

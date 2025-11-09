@@ -491,7 +491,7 @@ class BpjsMonitoringControllerLocalStorage extends Controller
     {
         $request->validate([
             'url' => 'required|url',
-            'method' => 'sometimes|string|in:GET,POST,PUT,DELETE,PATCH',
+            'method' => 'sometimes|string|in:GET,POST,PUT,DELETE,PATCH,PING',
             'timeout' => 'sometimes|integer|min:1|max:60'
         ]);
 
@@ -505,16 +505,38 @@ class BpjsMonitoringControllerLocalStorage extends Controller
             // Check if this is a BPJS endpoint
             $isBpjsEndpoint = $this->isBpjsEndpoint($url);
             
-            if ($isBpjsEndpoint) {
-                // For BPJS endpoints, use proper authentication headers
-                $headers = $this->getBpjsHeaders();
-                
-                $response = Http::withHeaders($headers)
-                    ->timeout($timeout)
-                    ->get($url);
+            if (strtoupper($method) === 'PING') {
+                if ($isBpjsEndpoint) {
+                    $headers = $this->getBpjsHeaders();
+                    $start = microtime(true);
+                    $response = Http::withHeaders($headers)
+                        ->timeout($timeout)
+                        ->head($url);
+                    if ($response->status() === 405) {
+                        $start = microtime(true);
+                        $response = Http::withHeaders($headers)
+                            ->timeout($timeout)
+                            ->get($url);
+                    }
+                } else {
+                    $start = microtime(true);
+                    $response = Http::timeout($timeout)->head($url);
+                    if ($response->status() === 405) {
+                        $start = microtime(true);
+                        $response = Http::timeout($timeout)->get($url);
+                    }
+                }
             } else {
-                // For other endpoints, simple request
-                $response = Http::timeout($timeout)->get($url);
+                if ($isBpjsEndpoint) {
+                    // For BPJS endpoints, use proper authentication headers
+                    $headers = $this->getBpjsHeaders();
+                    $response = Http::withHeaders($headers)
+                        ->timeout($timeout)
+                        ->get($url);
+                } else {
+                    // For other endpoints, simple request
+                    $response = Http::timeout($timeout)->get($url);
+                }
             }
             
             $end = microtime(true);
@@ -522,8 +544,8 @@ class BpjsMonitoringControllerLocalStorage extends Controller
             
             $severity = $this->getResponseTimeSeverity($responseTime);
             
-            // For BPJS endpoints, check the metaData structure
-            if ($isBpjsEndpoint && $response->successful()) {
+            // For BPJS endpoints, check the metaData structure (skip for PING)
+            if ($isBpjsEndpoint && strtoupper($method) !== 'PING' && $response->successful()) {
                 $json = $response->json();
                 $code = $json['metaData']['code'] ?? $response->status();
                 $message = $json['metaData']['message'] ?? $response->reason();
@@ -545,7 +567,7 @@ class BpjsMonitoringControllerLocalStorage extends Controller
                 $code = $response->status();
                 $message = $response->reason() ?? 'OK';
                 
-                // Handle HTTP status codes
+                // Handle HTTP status codes (PING: treat 2xx-3xx as success)
                 if ($code == 404) {
                     $status = 'not_found';
                     $message = 'Endpoint not found (404). This URL may no longer be available.';
@@ -556,7 +578,9 @@ class BpjsMonitoringControllerLocalStorage extends Controller
                     $status = 'server_error';
                     $message = 'Server error (' . $code . '): ' . $message;
                 } else {
-                    $status = $response->successful() ? 'success' : 'error';
+                    $status = (strtoupper($method) === 'PING')
+                        ? (($code >= 200 && $code < 400) ? 'success' : 'error')
+                        : ($response->successful() ? 'success' : 'error');
                 }
             }
             

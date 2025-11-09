@@ -195,6 +195,28 @@ const testCustomEndpoint = async (endpoint) => {
     endpoint.status = 'testing'
     const startTime = Date.now()
     
+    // Handle PING method with HEAD request and fallback to GET
+    if (endpoint.method === 'PING') {
+      let response
+      try {
+        response = await axios.head(endpoint.url, {
+          headers: endpoint.headers,
+          timeout: 10000
+        })
+      } catch (headErr) {
+        response = await axios.get(endpoint.url, {
+          headers: endpoint.headers,
+          timeout: 10000
+        })
+      }
+      const endTime = Date.now()
+      endpoint.response_time = endTime - startTime
+      const statusCode = response.status
+      endpoint.code = statusCode.toString()
+      endpoint.status = statusCode >= 200 && statusCode < 400 ? 'success' : 'error'
+      return
+    }
+
     const response = await axios({
       method: endpoint.method,
       url: endpoint.url,
@@ -596,6 +618,7 @@ onMounted(() => {
                                 <select v-model="newEndpoint.method" 
                                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
                                     <option value="GET">GET</option>
+                                    <option value="PING">PING</option>
                                     <option value="POST">POST</option>
                                     <option value="PUT">PUT</option>
                                     <option value="PATCH">PATCH</option>

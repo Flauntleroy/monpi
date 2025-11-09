@@ -3,6 +3,7 @@ import { Head } from '@inertiajs/vue3';
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import AppHeaderLayout from '@/layouts/app/AppHeaderLayout.vue';
 import FloatingThemeToggle from '@/components/FloatingThemeToggle.vue';
+// ThemeToggle dihapus dari header mobile; gunakan FloatingThemeToggle sebagai satu-satunya kontrol
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import RealtimeLineChart from '@/components/charts/RealtimeLineChart.vue';
@@ -20,15 +21,17 @@ import {
   Trash2,
   Edit,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  MoreVertical
 } from 'lucide-vue-next';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 
 interface CustomEndpoint {
   id: string;
   name: string;
   url: string;
   description: string;
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PING';
   headers?: Record<string, string>;
   timeout?: number;
   isActive: boolean;
@@ -392,10 +395,10 @@ const testCustomEndpoint = async (endpoint: CustomEndpoint): Promise<EndpointDat
   try {
     let response;
     
-    // Use backend proxy for BPJS endpoints
-    // For BPJS endpoints, always use backend proxy so proper authentication headers are applied
-    if (endpoint.isBpjsEndpoint) {
-      // Test via backend with proper BPJS authentication
+    // Gunakan backend proxy untuk BPJS endpoints atau method PING
+    // PING diarahkan ke backend agar bisa menggunakan HEAD tanpa CORS
+    if (endpoint.isBpjsEndpoint || endpoint.method === 'PING') {
+      // Test via backend (BPJS gunakan auth; PING gunakan HEAD di server)
       response = await fetch('/bpjs-monitoring/test-custom-endpoint', {
         method: 'POST',
         headers: {
@@ -634,8 +637,8 @@ const fetchMonitoringData = async () => {
         response_time: Math.round(ep.response_time),
         timestamp: ts,
       });
-      // Keep last 50 entries
-      if (endpointHistories.value[key].length > 50) endpointHistories.value[key].pop();
+      // Keep last 30 entries (single-line heartbeat)
+      if (endpointHistories.value[key].length > 30) endpointHistories.value[key].pop();
     });
 
     // Sync dark mode for chart styling
@@ -821,34 +824,66 @@ watch(safeEndpoints, (eps) => {
           </p>
         </div>
         <div class="flex items-center gap-4">
-          <!-- <div class="text-sm text-gray-500 dark:text-gray-400">
-            Last updated: {{ lastUpdate }} • {{ refreshCopy }}
-          </div> -->
-          <Button 
-            @click="showAddEndpointModal = true" 
-            variant="default"
-            size="sm"
-          >
-            <Plus class="w-4 h-4 mr-2" />
-            Add Endpoint
-          </Button>
-          <Button 
-            @click="showManageEndpointsModal = true" 
-            variant="outline"
-            size="sm"
-          >
-            <Settings class="w-4 h-4 mr-2" />
-            Manage ({{ customEndpoints.length }})
-          </Button>
-          <Button 
-            @click="fetchMonitoringData" 
-            :disabled="isLoading"
-            variant="outline"
-            size="sm"
-          >
-            <RefreshCw :class="{ 'animate-spin': isLoading }" class="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
+          <!-- Desktop actions -->
+          <div class="hidden md:flex items-center gap-4">
+            <Button 
+              @click="showAddEndpointModal = true" 
+              variant="default"
+              size="sm"
+            >
+              <Plus class="w-4 h-4 mr-2" />
+              Add Endpoint
+            </Button>
+            <Button 
+              @click="showManageEndpointsModal = true" 
+              variant="outline"
+              size="sm"
+            >
+              <Settings class="w-4 h-4 mr-2" />
+              Manage ({{ customEndpoints.length }})
+            </Button>
+            <Button 
+              @click="fetchMonitoringData" 
+              :disabled="isLoading"
+              variant="outline"
+              size="sm"
+            >
+              <RefreshCw :class="{ 'animate-spin': isLoading }" class="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+
+          <!-- Mobile dropdown actions -->
+          <div class="md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  class="h-12 w-12 p-0 inline-flex items-center justify-center"
+                  aria-label="Actions"
+                >
+                  <MoreVertical class="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" class="w-56">
+                <DropdownMenuItem @click="showAddEndpointModal = true">
+                  <Plus class="w-4 h-4 mr-2" />
+                  Add Endpoint
+                </DropdownMenuItem>
+                <DropdownMenuItem @click="showManageEndpointsModal = true">
+                  <Settings class="w-4 h-4 mr-2" />
+                  Manage ({{ customEndpoints.length }})
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem @click="fetchMonitoringData" :disabled="isLoading">
+                  <RefreshCw :class="{ 'animate-spin': isLoading }" class="w-4 h-4 mr-2" />
+                  Refresh
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <!-- Theme toggle mobile dihapus; gunakan FloatingThemeToggle di pojok bawah -->
         </div>
       </div>
 
@@ -887,9 +922,9 @@ watch(safeEndpoints, (eps) => {
       </div>
 
       <!-- Main Content: grid dengan sidebar kiri dan area kanan -->
-      <div v-if="monitoringData" class="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
+      <div v-if="monitoringData" class="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
         <!-- Sidebar kiri: daftar endpoint -->
-        <Card class="lg:sticky lg:top-6 self-start">
+        <Card class="hidden md:block lg:sticky lg:top-6 self-start">
           <CardHeader>
             <CardTitle>Monitors</CardTitle>
             <CardDescription>Daftar endpoint</CardDescription>
@@ -910,17 +945,17 @@ watch(safeEndpoints, (eps) => {
                 <div class="flex items-center justify-between">
                   <div class="flex items-center space-x-3">
                     <div :class="getStatusColor(endpoint.status)" class="w-2.5 h-2.5 rounded-full"></div>
-                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[180px]">
+                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[180px] md:max-w-[220px] lg:max-w-[300px]">
                       {{ endpoint.name || endpoint.url || 'Unknown' }}
                     </div>
                   </div>
-                  <div class="text-xs" :class="getBadgeClass(endpoint.status)">
-                    {{ endpoint.code }}
+                  <div class="text-xs font-mono" :class="getBadgeClass(endpoint.status)">
+                    {{ endpoint.status === 'success' ? (Math.round(endpoint.response_time) + ' ms') : endpoint.code }}
                   </div>
                 </div>
-                <div class="mt-2 flex items-center gap-1 flex-wrap">
+                <div class="mt-2 flex items-center gap-1 flex-nowrap overflow-hidden">
                   <span
-                    v-for="(h, i) in (endpointHistories[getEndpointKey(endpoint, idx)] || []).slice(0, 40).reverse()"
+                    v-for="(h, i) in (endpointHistories[getEndpointKey(endpoint, idx)] || []).slice(0, 30).reverse()"
                     :key="i"
                     :title="h.timestamp + ' • ' + h.status"
                     :class="[
@@ -936,9 +971,125 @@ watch(safeEndpoints, (eps) => {
         </Card>
 
         <!-- Area kanan: summary, chart, dan detail endpoint -->
-        <div class="space-y-6">
-          <!-- Summary Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="flex flex-col space-y-6">
+          <!-- Summary Cards: Mobile slider -->
+          <div class="md:hidden order-1">
+            <div class="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2">
+              <!-- Total Endpoints -->
+              <Card class="min-w-full snap-start">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle class="text-sm font-medium">Total Endpoints</CardTitle>
+                  <Activity class="h-4 w-4 text-blue-500" />
+                </CardHeader>
+                <CardContent>
+                  <div class="text-2xl font-bold">{{ monitoringData.summary.total }}</div>
+                  <p class="text-xs text-muted-foreground mt-1">Monitored endpoints</p>
+                </CardContent>
+              </Card>
+
+              <!-- Uptime -->
+              <Card class="min-w-full snap-start">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle class="text-sm font-medium">Uptime</CardTitle>
+                  <Wifi class="h-4 w-4 text-green-500" />
+                </CardHeader>
+                <CardContent>
+                  <div class="text-2xl font-bold text-green-600">
+                    {{ monitoringData.summary.uptime_percentage }}%
+                  </div>
+                  <div class="text-xs text-muted-foreground mt-1">
+                    {{ monitoringData.summary.uptime_24h ? `24h: ${monitoringData.summary.uptime_24h}%` : 'Current status' }}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <!-- Avg Response Time -->
+              <Card class="min-w-full snap-start">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle class="text-sm font-medium">Avg Response Time</CardTitle>
+                  <Zap class="h-4 w-4 text-yellow-500" />
+                </CardHeader>
+                <CardContent>
+                  <div class="text-2xl font-bold" :class="getResponseTimeColor(monitoringData.summary.avg_response_time)">
+                    {{ Math.round(monitoringData.summary.avg_response_time) }} ms
+                  </div>
+                  <div class="text-xs text-muted-foreground mt-1">
+                    {{ monitoringData.summary.avg_response_time_24h ? `24h: ${Math.round(monitoringData.summary.avg_response_time_24h)}ms` : 'Current average' }}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <!-- Status -->
+              <Card class="min-w-full snap-start">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle class="text-sm font-medium">Status</CardTitle>
+                  <Activity class="h-4 w-4 text-gray-500" />
+                </CardHeader>
+                <CardContent>
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                      <CheckCircle class="w-4 h-4 text-green-500 mr-1" />
+                      <span class="text-sm font-medium">{{ monitoringData.summary.success }}</span>
+                    </div>
+                    <div class="flex items-center">
+                      <XCircle class="w-4 h-4 text-red-500 mr-1" />
+                      <span class="text-sm font-medium">{{ monitoringData.summary.error }}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <!-- Monitors: Mobile-only copy placed right under slide card -->
+          <Card class="md:hidden order-2">
+            <CardHeader>
+              <CardTitle>Monitors</CardTitle>
+              <CardDescription>Daftar endpoint</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div class="space-y-2">
+                <div
+                  v-for="(endpoint, idx) in safeEndpoints"
+                  :key="getEndpointKey(endpoint, idx)"
+                  @click="selectEndpoint(getEndpointKey(endpoint, idx))"
+                  :class="[
+                    'p-3 border rounded-lg cursor-pointer transition-colors',
+                    selectedKey === getEndpointKey(endpoint, idx)
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                  ]"
+                >
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                      <div :class="getStatusColor(endpoint.status)" class="w-2.5 h-2.5 rounded-full"></div>
+                      <div class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[260px]">
+                        {{ endpoint.name || endpoint.url || 'Unknown' }}
+                      </div>
+                    </div>
+                    <div class="text-xs font-mono" :class="getBadgeClass(endpoint.status)">
+                      {{ endpoint.status === 'success' ? (Math.round(endpoint.response_time) + ' ms') : endpoint.code }}
+                    </div>
+                  </div>
+                  <div class="mt-2 flex items-center gap-1 flex-nowrap overflow-hidden">
+                    <span
+                      v-for="(h, i) in (endpointHistories[getEndpointKey(endpoint, idx)] || []).slice(0, 30).reverse()"
+                      :key="i"
+                      :title="h.timestamp + ' • ' + h.status"
+                      :class="[
+                        'h-1.5 w-2 rounded-sm',
+                        h.status === 'success' ? 'bg-green-500' :
+                        h.status === 'timeout' ? 'bg-yellow-500' : 'bg-red-500'
+                      ]"
+                    ></span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <!-- Summary Cards: Desktop grid -->
+          <div class="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <!-- Total Endpoints -->
             <Card>
               <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1005,7 +1156,7 @@ watch(safeEndpoints, (eps) => {
           </div>
 
           <!-- Real-time Line Chart -->
-          <Card>
+          <Card class="order-4 md:order-none">
             <CardHeader>
               <CardTitle>Response Time (Real-time)</CardTitle>
               <CardDescription>
@@ -1046,8 +1197,8 @@ watch(safeEndpoints, (eps) => {
             </CardContent>
           </Card>
 
-          <!-- Detail Endpoint (expanded di bawah chart) -->
-          <Card>
+          <!-- Detail Endpoint -->
+          <Card class="order-3 md:order-none">
             <CardHeader>
               <CardTitle>Detail Endpoint</CardTitle>
               <CardDescription v-if="selected">Status dan performa terkini</CardDescription>
@@ -1176,10 +1327,11 @@ watch(safeEndpoints, (eps) => {
                 </label>
                 <select 
                   v-model="newEndpoint.method"
-                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="GET">GET</option>
                   <option value="POST">POST</option>
+                  <option value="PING">PING</option>
                 </select>
               </div>
 

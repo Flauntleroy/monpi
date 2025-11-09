@@ -198,7 +198,7 @@ class BpjsMonitoringControllerSimple extends Controller
     {
         $request->validate([
             'url' => 'required|url',
-            'method' => 'sometimes|string|in:GET,POST,PUT,DELETE,PATCH',
+            'method' => 'sometimes|string|in:GET,POST,PUT,DELETE,PATCH,PING',
             'timeout' => 'sometimes|integer|min:1|max:60'
         ]);
 
@@ -212,16 +212,40 @@ class BpjsMonitoringControllerSimple extends Controller
             // Check if this is a BPJS endpoint
             $isBpjsEndpoint = $this->isBpjsEndpoint($url);
             
-            if ($isBpjsEndpoint) {
-                // For BPJS endpoints, use proper authentication headers
-                $headers = $this->getBpjsHeaders();
-                
-                $response = Http::withHeaders($headers)
-                    ->timeout($timeout)
-                    ->get($url);
+            if (strtoupper($method) === 'PING') {
+                if ($isBpjsEndpoint) {
+                    // For BPJS endpoints, use proper authentication headers
+                    $headers = $this->getBpjsHeaders();
+                    $start = microtime(true);
+                    $response = Http::withHeaders($headers)
+                        ->timeout($timeout)
+                        ->head($url);
+                    if ($response->status() === 405) {
+                        $start = microtime(true);
+                        $response = Http::withHeaders($headers)
+                            ->timeout($timeout)
+                            ->get($url);
+                    }
+                } else {
+                    // For other endpoints, simple HEAD ping, fallback GET
+                    $start = microtime(true);
+                    $response = Http::timeout($timeout)->head($url);
+                    if ($response->status() === 405) {
+                        $start = microtime(true);
+                        $response = Http::timeout($timeout)->get($url);
+                    }
+                }
             } else {
-                // For other endpoints, simple request
-                $response = Http::timeout($timeout)->get($url);
+                if ($isBpjsEndpoint) {
+                    // For BPJS endpoints, use proper authentication headers
+                    $headers = $this->getBpjsHeaders();
+                    $response = Http::withHeaders($headers)
+                        ->timeout($timeout)
+                        ->get($url);
+                } else {
+                    // For other endpoints, simple request
+                    $response = Http::timeout($timeout)->get($url);
+                }
             }
             
             $end = microtime(true);
@@ -229,8 +253,8 @@ class BpjsMonitoringControllerSimple extends Controller
             
             $severity = $this->getSeverityFromResponseTime($responseTime);
             
-            // For BPJS endpoints, check the metaData structure
-            if ($isBpjsEndpoint && $response->successful()) {
+            // For BPJS endpoints, check the metaData structure (skip for PING)
+            if ($isBpjsEndpoint && strtoupper($method) !== 'PING' && $response->successful()) {
                 $json = $response->json();
                 $code = $json['metaData']['code'] ?? $response->status();
                 $message = $json['metaData']['message'] ?? $response->reason();
@@ -238,7 +262,10 @@ class BpjsMonitoringControllerSimple extends Controller
             } else {
                 $code = $response->status();
                 $message = $response->reason() ?? 'OK';
-                $status = $response->successful() ? 'success' : 'error';
+                // For PING, consider 2xx-3xx as reachable
+                $status = (strtoupper($method) === 'PING')
+                    ? (($code >= 200 && $code < 400) ? 'success' : 'error')
+                    : ($response->successful() ? 'success' : 'error');
             }
             
             return response()->json([

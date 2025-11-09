@@ -383,7 +383,7 @@ class BpjsMonitoringController extends Controller
     {
         $request->validate([
             'url' => 'required|url',
-            'method' => 'sometimes|string|in:GET,POST,PUT,DELETE,PATCH',
+            'method' => 'sometimes|string|in:GET,POST,PUT,DELETE,PATCH,PING',
             'timeout' => 'sometimes|integer|min:1|max:60'
         ]);
 
@@ -396,17 +396,41 @@ class BpjsMonitoringController extends Controller
         try {
             // Check if this is a BPJS endpoint
             $isBpjsEndpoint = $this->isBpjsEndpoint($url);
-            
-            if ($isBpjsEndpoint) {
-                // For BPJS endpoints, use proper authentication headers
-                $headers = $this->getBpjsHeaders();
-                
-                $response = Http::withHeaders($headers)
-                    ->timeout($timeout)
-                    ->get($url);
+
+            if (strtoupper($method) === 'PING') {
+                // Perform HEAD ping; fallback to GET if HEAD not allowed
+                if ($isBpjsEndpoint) {
+                    $headers = $this->getBpjsHeaders();
+                    $start = microtime(true);
+                    $response = Http::withHeaders($headers)
+                        ->timeout($timeout)
+                        ->head($url);
+                    if ($response->status() === 405) {
+                        // Fallback to GET for servers that do not support HEAD
+                        $start = microtime(true);
+                        $response = Http::withHeaders($headers)
+                            ->timeout($timeout)
+                            ->get($url);
+                    }
+                } else {
+                    $start = microtime(true);
+                    $response = Http::timeout($timeout)->head($url);
+                    if ($response->status() === 405) {
+                        $start = microtime(true);
+                        $response = Http::timeout($timeout)->get($url);
+                    }
+                }
             } else {
-                // For other endpoints, simple request
-                $response = Http::timeout($timeout)->get($url);
+                if ($isBpjsEndpoint) {
+                    // For BPJS endpoints, use proper authentication headers
+                    $headers = $this->getBpjsHeaders();
+                    $response = Http::withHeaders($headers)
+                        ->timeout($timeout)
+                        ->get($url);
+                } else {
+                    // For other endpoints, simple request
+                    $response = Http::timeout($timeout)->get($url);
+                }
             }
             
             $end = microtime(true);
@@ -414,8 +438,8 @@ class BpjsMonitoringController extends Controller
             
             $severity = $this->getSeverityFromResponseTime($responseTime);
             
-            // For BPJS endpoints, check the metaData structure
-            if ($isBpjsEndpoint && $response->successful()) {
+            // For BPJS endpoints, check the metaData structure (skip for PING)
+            if ($isBpjsEndpoint && strtoupper($method) !== 'PING' && $response->successful()) {
                 $json = $response->json();
                 $code = $json['metaData']['code'] ?? $response->status();
                 $message = $json['metaData']['message'] ?? $response->reason();
@@ -428,7 +452,10 @@ class BpjsMonitoringController extends Controller
             } else {
                 $code = $response->status();
                 $message = $response->reason() ?? 'OK';
-                $status = $response->successful() ? 'success' : 'error';
+                // For PING, treat 2xx-3xx as reachable
+                $status = (strtoupper($method) === 'PING')
+                    ? (($code >= 200 && $code < 400) ? 'success' : 'error')
+                    : ($response->successful() ? 'success' : 'error');
                 
                 // Kirim notifikasi jika code 201 atau 404 (SELALU, tidak peduli successful atau tidak) dengan cooldown 30 menit
                 if (in_array($code, [201, '201', 404, '404'])) {
