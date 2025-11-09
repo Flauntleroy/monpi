@@ -17,7 +17,9 @@ import {
   Plus,
   Settings,
   Trash2,
-  Edit
+  Edit,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-vue-next';
 
 interface CustomEndpoint {
@@ -44,6 +46,14 @@ interface EndpointData {
   description?: string;
   isCustom?: boolean;
   customId?: string;
+}
+
+interface EndpointHistoryEntry {
+  status: 'success' | 'error' | 'timeout';
+  code: string | number;
+  message: string;
+  response_time: number;
+  timestamp: string;
 }
 
 interface Alert {
@@ -611,6 +621,22 @@ const fetchMonitoringData = async () => {
       }
     });
 
+    // Update per-endpoint status histories for expand panel
+    const ts = data.timestamp;
+    allEndpoints.forEach((ep, idx) => {
+      const key = getEndpointKey(ep, idx);
+      if (!endpointHistories.value[key]) endpointHistories.value[key] = [];
+      endpointHistories.value[key].unshift({
+        status: ep.status,
+        code: ep.code,
+        message: ep.message,
+        response_time: Math.round(ep.response_time),
+        timestamp: ts,
+      });
+      // Keep last 50 entries
+      if (endpointHistories.value[key].length > 50) endpointHistories.value[key].pop();
+    });
+
     // Sync dark mode for chart styling
     updateIsDarkChart();
     
@@ -715,6 +741,42 @@ watch(maxPoints, (newMax) => {
     if (ds.data.length > n) ds.data.splice(0, ds.data.length - n);
   });
 });
+
+// Expand/collapse dan state riwayat per endpoint (harus berada dalam <script>)
+const expandedKeys = ref<string[]>([]);
+const endpointHistories = ref<Record<string, EndpointHistoryEntry[]>>({});
+
+const getEndpointKey = (ep: EndpointData, idx?: number) => ep.customId || ep.name || ep.url || String(idx ?? '0');
+const isExpanded = (key: string) => expandedKeys.value.includes(key);
+const toggleExpanded = (key: string) => {
+  const i = expandedKeys.value.indexOf(key);
+  if (i >= 0) expandedKeys.value.splice(i, 1); else expandedKeys.value.push(key);
+};
+
+const getDatasetForKey = (key: string): LineDataset | undefined => chartDatasets.value.find(ds => ds.id === key);
+const getSingleDataset = (key: string): LineDataset[] => {
+  const ds = getDatasetForKey(key);
+  return ds ? [{ id: ds.id, label: ds.label, data: ds.data, borderColor: ds.borderColor, pointRadius: 2, tension: 0.25 }] : [];
+};
+
+const getAvgPingForKey = (key: string): number | null => {
+  const ds = getDatasetForKey(key);
+  if (!ds) return null;
+  const vals = ds.data.filter((v) => typeof v === 'number') as number[];
+  if (!vals.length) return null;
+  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+};
+
+const getUptimePercentageForKey = (key: string): number | null => {
+  const history = endpointHistories.value[key] || [];
+  if (!history.length) return null;
+  const ok = history.filter(h => h.status === 'success').length;
+  return Math.round((ok / history.length) * 10000) / 100; // 2 decimals
+};
+
+const clearEndpointHistory = (key: string) => {
+  endpointHistories.value[key] = [];
+};
 </script>
 
 <template>
@@ -925,71 +987,119 @@ watch(maxPoints, (newMax) => {
               <div 
                 v-for="(endpoint, idx) in safeEndpoints" 
                 :key="endpoint.customId || endpoint.name || endpoint.url || idx"
-                class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
               >
-                <div class="flex items-center space-x-4 flex-1">
-                  <div class="flex items-center">
-                    <div :class="getStatusColor(endpoint.status)" class="w-3 h-3 rounded-full mr-3"></div>
-                    <component :is="getStatusIcon(endpoint.status)" class="w-4 h-4 mr-2" :class="{
-                      'text-green-500': endpoint.status === 'success',
-                      'text-yellow-500': endpoint.status === 'timeout',
-                      'text-red-500': endpoint.status === 'error'
-                    }" />
-                  </div>
-                  <div class="flex-1">
-                    <div class="flex items-center space-x-2">
-                      <div class="font-medium text-gray-900 dark:text-white">
-                        {{ endpoint.name || endpoint.url || 'Unknown' }}
+                <!-- Row header clickable -->
+                <div class="flex items-center justify-between cursor-pointer" @click="toggleExpanded(getEndpointKey(endpoint, idx))">
+                  <div class="flex items-center space-x-4 flex-1">
+                    <div class="flex items-center">
+                      <div :class="getStatusColor(endpoint.status)" class="w-3 h-3 rounded-full mr-3"></div>
+                      <component :is="getStatusIcon(endpoint.status)" class="w-4 h-4 mr-2" :class="{
+                        'text-green-500': endpoint.status === 'success',
+                        'text-yellow-500': endpoint.status === 'timeout',
+                        'text-red-500': endpoint.status === 'error'
+                      }" />
+                    </div>
+                    <div class="flex-1">
+                      <div class="flex items-center space-x-2">
+                        <div class="font-medium text-gray-900 dark:text-white">
+                          {{ endpoint.name || endpoint.url || 'Unknown' }}
+                        </div>
+                        <span v-if="endpoint.isCustom" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                          Custom
+                        </span>
                       </div>
-                      <span v-if="endpoint.isCustom" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-                        Custom
-                      </span>
+                      <div class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-md">
+                        {{ endpoint.description || endpoint.url }}
+                      </div>
                     </div>
-                    <div class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-md">
-                      {{ endpoint.description || endpoint.url }}
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="flex items-center space-x-4">
-                  <!-- Custom endpoint actions -->
-                  <div v-if="endpoint.isCustom" class="flex items-center space-x-2">
-                    <Button 
-                      @click="editCustomEndpointById(endpoint.customId)"
-                      variant="ghost"
-                      size="sm"
-                      class="h-8 w-8 p-0"
-                    >
-                      <Edit class="h-3 w-3" />
-                    </Button>
-                    <Button 
-                      @click="deleteCustomEndpoint(endpoint.customId!)"
-                      variant="ghost"
-                      size="sm"
-                      class="h-8 w-8 p-0 text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 class="h-3 w-3" />
-                    </Button>
                   </div>
                   
-                  <div class="text-right">
-                    <div class="font-medium" :class="getResponseTimeColor(endpoint.response_time)">
-                      {{ Math.round(endpoint.response_time) }} ms
-                    </div>
-                    <div class="flex items-center space-x-2 mt-1">
-                      <span :class="getBadgeClass(endpoint.status)">
-                        {{ endpoint.code }}
-                      </span>
-                      <span 
-                        v-if="endpoint.severity" 
-                        :class="['text-xs px-2 py-1 rounded-full font-medium', 
-                                 endpoint.severity === 'excellent' ? 'text-green-600 bg-green-100' :
-                                 endpoint.severity === 'good' ? 'text-blue-600 bg-blue-100' :
-                                 endpoint.severity === 'slow' ? 'text-yellow-600 bg-yellow-100' :
-                                 'text-red-600 bg-red-100']"
+                  <div class="flex items-center space-x-4">
+                    <!-- Custom endpoint actions -->
+                    <div v-if="endpoint.isCustom" class="flex items-center space-x-2">
+                      <Button 
+                        @click.stop="editCustomEndpointById(endpoint.customId)"
+                        variant="ghost"
+                        size="sm"
+                        class="h-8 w-8 p-0"
                       >
-                        {{ endpoint.severity }}
-                      </span>
+                        <Edit class="h-3 w-3" />
+                      </Button>
+                      <Button 
+                        @click.stop="deleteCustomEndpoint(endpoint.customId!)"
+                        variant="ghost"
+                        size="sm"
+                        class="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 class="h-3 w-3" />
+                      </Button>
+                    </div>
+                    
+                    <div class="text-right">
+                      <div class="font-medium" :class="getResponseTimeColor(endpoint.response_time)">
+                        {{ Math.round(endpoint.response_time) }} ms
+                      </div>
+                      <div class="flex items-center space-x-2 mt-1">
+                        <span :class="getBadgeClass(endpoint.status)">
+                          {{ endpoint.code }}
+                        </span>
+                        <span 
+                          v-if="endpoint.severity" 
+                          :class="['text-xs px-2 py-1 rounded-full font-medium', 
+                                   endpoint.severity === 'excellent' ? 'text-green-600 bg-green-100' :
+                                   endpoint.severity === 'good' ? 'text-blue-600 bg-blue-100' :
+                                   endpoint.severity === 'slow' ? 'text-yellow-600 bg-yellow-100' :
+                                   'text-red-600 bg-red-100']"
+                        >
+                          {{ endpoint.severity }}
+                        </span>
+                      </div>
+                    </div>
+                    <component :is="isExpanded(getEndpointKey(endpoint, idx)) ? ChevronUp : ChevronDown" class="w-4 h-4 text-gray-500" />
+                  </div>
+                </div>
+
+                <!-- Expanded details -->
+                <div v-if="isExpanded(getEndpointKey(endpoint, idx))" class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div class="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                      <div class="text-xs text-gray-600 dark:text-gray-300">Ping</div>
+                      <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ Math.round(endpoint.response_time) }} ms</div>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Current</p>
+                    </div>
+                    <div class="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                      <div class="text-xs text-gray-600 dark:text-gray-300">Avg. Ping</div>
+                      <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ getAvgPingForKey(getEndpointKey(endpoint, idx)) ?? '-' }} ms</div>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Session</p>
+                    </div>
+                    <div class="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                      <div class="text-xs text-gray-600 dark:text-gray-300">Uptime</div>
+                      <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ getUptimePercentageForKey(getEndpointKey(endpoint, idx)) ?? 0 }}%</div>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Session checks</p>
+                    </div>
+                    <div class="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                      <div class="text-xs text-gray-600 dark:text-gray-300">Status</div>
+                      <div class="text-sm font-semibold" :class="getResponseTimeColor(endpoint.response_time)">{{ endpoint.status }}</div>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Code: {{ endpoint.code }}</p>
+                    </div>
+                  </div>
+
+                  <div class="mt-2">
+                    <RealtimeLineChart :labels="chartLabels" :datasets="getSingleDataset(getEndpointKey(endpoint, idx))" :dark="isDarkChart" />
+                  </div>
+
+                  <div class="mt-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <span class="text-sm font-medium text-gray-900 dark:text-white">Status History</span>
+                      <Button size="sm" variant="outline" @click.stop="clearEndpointHistory(getEndpointKey(endpoint, idx))">Clear Data</Button>
+                    </div>
+                    <div class="text-xs text-gray-600 dark:text-gray-300">
+                      <div v-for="h in (endpointHistories[getEndpointKey(endpoint, idx)] || []).slice(0, 10)" :key="h.timestamp + String(h.code)" class="flex items-center justify-between py-1 border-b border-gray-100 dark:border-gray-800">
+                        <span :class="getBadgeClass(h.status)">{{ h.status }}</span>
+                        <span class="text-gray-500 dark:text-gray-400">{{ h.timestamp }}</span>
+                        <span class="text-gray-700 dark:text-gray-300 truncate max-w-[50%]">{{ h.message }}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
