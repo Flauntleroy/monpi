@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import AppHeaderLayout from '@/layouts/app/AppHeaderLayout.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -103,7 +103,7 @@ let intervalId: number | null = null;
 // Realtime chart state (avg response time over time)
 const chartLabels = ref<string[]>([]);
 const chartValues = ref<number[]>([]);
-// Multi-series datasets for per-endpoint response time
+// Multi-series datasets untuk response time per endpoint
 interface LineDataset {
   id: string;
   label: string;
@@ -115,8 +115,48 @@ interface LineDataset {
 }
 const chartDatasets = ref<LineDataset[]>([]);
 const seriesColors = ['#2563eb', '#16a34a', '#ef4444', '#f59e0b', '#9333ea', '#06b6d4', '#10b981', '#8b5cf6', '#3b82f6', '#14b8a6', '#f97316', '#dc2626'];
-const getSeriesColor = (idx: number) => seriesColors[idx % seriesColors.length];
-const MAX_POINTS = 50;
+const getColorForId = (id: string) => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  }
+  return seriesColors[hash % seriesColors.length];
+};
+
+// Kontrol Refresh & Filter Chart
+const maxPoints = ref(50);
+const refreshIntervalMs = ref(30000);
+const isPaused = ref(false);
+const showTopNSlowest = ref(false);
+const topN = ref(5);
+const activeEndpointIds = ref<string[]>([]);
+
+const availableEndpoints = computed(() => chartDatasets.value.map((ds) => ({ id: ds.id, label: ds.label })));
+
+const displayDatasets = computed(() => {
+  let base = chartDatasets.value;
+
+  if (showTopNSlowest.value) {
+    const pairs = base
+      .map((ds) => {
+        let lastVal: number | null = null;
+        for (let i = ds.data.length - 1; i >= 0; i--) {
+          const v = ds.data[i];
+          if (typeof v === 'number' && Number.isFinite(v)) { lastVal = v; break; }
+        }
+        return { ds, val: lastVal };
+      })
+      .filter((p) => p.val !== null) as Array<{ ds: LineDataset; val: number }>;
+    pairs.sort((a, b) => b.val - a.val);
+    base = pairs.slice(0, Math.max(1, topN.value)).map((p) => p.ds);
+  } else if (activeEndpointIds.value.length > 0) {
+    const set = new Set(activeEndpointIds.value);
+    base = base.filter((ds) => set.has(ds.id));
+  }
+
+  const dynamicRadius = base.length > 10 ? 0 : 2;
+  return base.map((ds) => ({ ...ds, pointRadius: dynamicRadius }));
+});
 
 const isDarkChart = ref(false);
 const updateIsDarkChart = () => {
@@ -124,6 +164,19 @@ const updateIsDarkChart = () => {
     isDarkChart.value = document.documentElement.classList.contains('dark');
   }
 };
+
+// Microcopy untuk toolbar dan header
+const refreshCopy = computed(() => {
+  const sec = Math.max(1, Math.round((refreshIntervalMs.value || 30000) / 1000));
+  return `Refreshing every ${sec}s${isPaused.value ? ' • Paused' : ''}`;
+});
+const proxyEnabledCount = computed(() => customEndpoints.value.filter((e) => e?.useProxy).length);
+const headerStatusCopy = computed(() => {
+  const uptime = monitoringData.value?.summary?.uptime_percentage;
+  const uptimeText = typeof uptime === 'number' ? `${Math.round(uptime)}%` : '—';
+  const proxyText = proxyEnabledCount.value > 0 ? `Proxy: ${proxyEnabledCount.value} enabled` : 'Proxy: off';
+  return `${proxyText} • Uptime: ${uptimeText}`;
+});
 
 // Safeguard: filter out null/invalid endpoint items before rendering
 const safeEndpoints = computed(() => {
@@ -522,7 +575,7 @@ const fetchMonitoringData = async () => {
     const label = new Date(data.timestamp).toLocaleTimeString();
     chartLabels.value.push(label);
     chartValues.value.push(Math.round(monitoringData.value.summary.avg_response_time));
-    if (chartLabels.value.length > MAX_POINTS) {
+    if (chartLabels.value.length > maxPoints.value) {
       chartLabels.value.shift();
       chartValues.value.shift();
     }
@@ -539,12 +592,11 @@ const fetchMonitoringData = async () => {
     chartDatasets.value.forEach((ds) => {
       const entry = endpointMap.get(ds.id);
       ds.data.push(entry ? entry.value : null);
-      if (ds.data.length > MAX_POINTS) ds.data.shift();
+      if (ds.data.length > maxPoints.value) ds.data.shift();
     });
 
     // Add new datasets for endpoints that appear now
     const existingKeys = new Set(chartDatasets.value.map((ds) => ds.id));
-    let nextColorIndex = chartDatasets.value.length;
     endpointMap.forEach((entry, key) => {
       if (!existingKeys.has(key)) {
         const initialGaps = Array(Math.max(0, chartLabels.value.length - 1)).fill(null);
@@ -552,11 +604,10 @@ const fetchMonitoringData = async () => {
           id: key,
           label: entry.label,
           data: [...initialGaps, entry.value],
-          borderColor: getSeriesColor(nextColorIndex),
+          borderColor: getColorForId(key),
           pointRadius: 2,
           tension: 0.25,
         });
-        nextColorIndex++;
       }
     });
 
@@ -615,9 +666,14 @@ const getBadgeClass = (status: string) => {
 onMounted(() => {
   loadCustomEndpoints();
   fetchMonitoringData();
-  intervalId = window.setInterval(() => {
-    fetchMonitoringData();
-  }, 30000);
+  const startInterval = () => {
+    if (intervalId) clearInterval(intervalId);
+    intervalId = window.setInterval(() => {
+      if (!isPaused.value) fetchMonitoringData();
+    }, refreshIntervalMs.value);
+  };
+  (fetchMonitoringData as any)._startInterval = startInterval;
+  startInterval();
   updateIsDarkChart();
   const mql = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   const handler = () => updateIsDarkChart();
@@ -635,6 +691,30 @@ onUnmounted(() => {
   const handler = (isDarkChart as any)._handler as (() => void) | null;
   if (mql && handler) mql.removeEventListener('change', handler as EventListener);
 });
+
+// Watchers untuk kontrol refresh
+watch(refreshIntervalMs, () => {
+  const starter = (fetchMonitoringData as any)._startInterval as (() => void) | undefined;
+  if (!isPaused.value && starter) starter();
+});
+
+watch(isPaused, (paused) => {
+  if (paused) {
+    if (intervalId) { clearInterval(intervalId); intervalId = null; }
+  } else {
+    const starter = (fetchMonitoringData as any)._startInterval as (() => void) | undefined;
+    if (starter) starter();
+  }
+});
+
+watch(maxPoints, (newMax) => {
+  const n = Math.max(10, Math.min(200, Number(newMax) || 50));
+  if (chartLabels.value.length > n) chartLabels.value.splice(0, chartLabels.value.length - n);
+  if (chartValues.value.length > n) chartValues.value.splice(0, chartValues.value.length - n);
+  chartDatasets.value.forEach((ds) => {
+    if (ds.data.length > n) ds.data.splice(0, ds.data.length - n);
+  });
+});
 </script>
 
 <template>
@@ -645,16 +725,22 @@ onUnmounted(() => {
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-            BPJS API Monitoring
+            MonPi Endpoint
           </h1>
-          <p class="text-gray-600 dark:text-gray-400 mt-1">
+          <!-- <p class="text-gray-600 dark:text-gray-400 mt-1">
             Real-time monitoring dashboard untuk konektivitas API BPJS
+          </p> -->
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {{ headerStatusCopy }}
+          </p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Last updated: {{ lastUpdate }} <!--• {{ refreshCopy }} -->
           </p>
         </div>
         <div class="flex items-center gap-4">
-          <div class="text-sm text-gray-500 dark:text-gray-400">
-            Last updated: {{ lastUpdate }}
-          </div>
+          <!-- <div class="text-sm text-gray-500 dark:text-gray-400">
+            Last updated: {{ lastUpdate }} • {{ refreshCopy }}
+          </div> -->
           <Button 
             @click="showAddEndpointModal = true" 
             variant="default"
@@ -790,10 +876,41 @@ onUnmounted(() => {
       <Card>
         <CardHeader>
           <CardTitle>Response Time (Real-time)</CardTitle>
-          <CardDescription>Grafik garis interaktif yang memperbarui otomatis setiap 30 detik</CardDescription>
+          <CardDescription>
+            Refresh every {{ Math.round(refreshIntervalMs / 1000) }} sec
+          </CardDescription>
         </CardHeader>
       <CardContent>
-          <RealtimeLineChart :labels="chartLabels" :datasets="chartDatasets" :dark="isDarkChart" />
+          <div class="flex flex-wrap items-center gap-3 mb-3">
+            <label class="text-sm text-gray-600 dark:text-gray-300">Interval</label>
+            <select v-model.number="refreshIntervalMs" class="px-2 py-1 border rounded text-sm">
+              <option :value="10000">10s</option>
+              <option :value="20000">20s</option>
+              <option :value="30000">30s</option>
+              <option :value="60000">60s</option>
+            </select>
+
+            <Button @click="isPaused = !isPaused" size="sm" variant="outline">
+              {{ isPaused ? 'Resume' : 'Pause' }}
+            </Button>
+
+            <label class="text-sm text-gray-600 dark:text-gray-300">Max Points</label>
+            <input type="number" v-model.number="maxPoints" min="10" max="200" class="w-20 px-2 py-1 border rounded text-sm" />
+
+            <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-1">
+              <input type="checkbox" v-model="showTopNSlowest" />
+              Top N slowest
+            </label>
+            <input v-if="showTopNSlowest" type="number" v-model.number="topN" min="1" max="20" class="w-16 px-2 py-1 border rounded text-sm" />
+
+            <!-- <div class="flex items-center gap-2">
+              <span class="text-sm text-gray-600 dark:text-gray-300">Filter endpoints</span>
+              <select multiple v-model="activeEndpointIds" class="min-w-[200px] max-w-[320px] px-2 py-1 border rounded text-sm">
+                <option v-for="ep in availableEndpoints" :key="ep.id" :value="ep.id">{{ ep.label }}</option>
+              </select>
+            </div> -->
+          </div>
+          <RealtimeLineChart :labels="chartLabels" :datasets="displayDatasets" :dark="isDarkChart" />
       </CardContent>
       </Card>
 

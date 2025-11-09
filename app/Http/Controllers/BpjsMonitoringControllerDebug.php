@@ -28,15 +28,15 @@ class BpjsMonitoringControllerDebug extends Controller
             // Endpoint list dengan campuran BPJS dan baseline endpoints
             $endpoints = [
                 // BPJS Endpoints
-                ['name' => 'BPJS Diagnosa', 'url' => $this->api_url . 'referensi/diagnosa/A00', 'description' => 'Referensi data diagnosa BPJS', 'type' => 'bpjs'],
+                ['name' => 'BPJS Diagnosa', 'url' => $this->api_url . 'referensi/diagnosa/A02', 'description' => 'Referensi data diagnosa BPJS', 'type' => 'bpjs'],
                 ['name' => 'BPJS Poli', 'url' => $this->api_url . 'referensi/poli/INT', 'description' => 'Referensi data poli BPJS', 'type' => 'bpjs'],
-                ['name' => 'BPJS Faskes', 'url' => $this->api_url . 'referensi/faskes/0101R001/1', 'description' => 'Referensi data fasilitas kesehatan BPJS', 'type' => 'bpjs'],
+                // ['name' => 'BPJS Faskes', 'url' => $this->api_url . 'referensi/faskes/0101R001/1', 'description' => 'Referensi data fasilitas kesehatan BPJS', 'type' => 'bpjs'],
                 
                 // Baseline Public Endpoints untuk perbandingan
                 ['name' => 'Google DNS', 'url' => 'https://dns.google/resolve?name=google.com&type=A', 'description' => 'Google Public DNS API', 'type' => 'baseline'],
                 ['name' => 'Cloudflare DNS', 'url' => 'https://cloudflare-dns.com/dns-query?name=cloudflare.com&type=A', 'description' => 'Cloudflare DNS over HTTPS', 'type' => 'baseline'],
-                ['name' => 'JSONPlaceholder', 'url' => 'https://jsonplaceholder.typicode.com/posts/1', 'description' => 'Test JSON API', 'type' => 'baseline'],
-                ['name' => 'HTTPBin Status', 'url' => 'https://httpbin.org/status/200', 'description' => 'HTTP status test endpoint', 'type' => 'baseline'],
+                // ['name' => 'JSONPlaceholder', 'url' => 'https://jsonplaceholder.typicode.com/posts/1', 'description' => 'Test JSON API', 'type' => 'baseline'],
+                // ['name' => 'HTTPBin Status', 'url' => 'https://httpbin.org/status/200', 'description' => 'HTTP status test endpoint', 'type' => 'baseline'],
                 ['name' => 'GitHub API', 'url' => 'https://api.github.com/zen', 'description' => 'GitHub API health check', 'type' => 'baseline']
             ];
 
@@ -63,13 +63,36 @@ class BpjsMonitoringControllerDebug extends Controller
                             ->withHeaders($headers)
                             ->get($endpoint['url']);
                     } else {
-                        // Untuk baseline endpoints, request sederhana
+                        // Untuk baseline endpoints, gunakan header yang sesuai per layanan
+                        $headers = [
+                            'User-Agent' => 'BPJS-Monitoring/1.0',
+                        ];
+
+                        $endpointUrl = $endpoint['url'];
+
+                        if (strpos($endpointUrl, 'cloudflare-dns.com/dns-query') !== false) {
+                            // Cloudflare DoH membutuhkan Accept: application/dns-json
+                            $headers['Accept'] = 'application/dns-json';
+                            // Tambahkan ct=application/dns-json untuk kompatibilitas luas
+                            if (strpos($endpointUrl, 'ct=') === false) {
+                                $endpointUrl .= (strpos($endpointUrl, '?') !== false ? '&' : '?') . 'ct=application/dns-json';
+                            }
+                        } elseif (strpos($endpointUrl, 'api.github.com') !== false) {
+                            // GitHub API sebaiknya menggunakan header berikut
+                            $headers['Accept'] = 'application/vnd.github+json';
+                            $headers['X-GitHub-Api-Version'] = '2022-11-28';
+                            // Gunakan token jika tersedia untuk menghindari rate limit 403
+                            $githubToken = env('GITHUB_TOKEN');
+                            if (!empty($githubToken)) {
+                                $headers['Authorization'] = 'Bearer ' . $githubToken;
+                            }
+                        } else {
+                            $headers['Accept'] = 'application/json';
+                        }
+
                         $response = Http::timeout(10)
-                            ->withHeaders([
-                                'User-Agent' => 'BPJS-Monitoring/1.0',
-                                'Accept' => 'application/json'
-                            ])
-                            ->get($endpoint['url']);
+                            ->withHeaders($headers)
+                            ->get($endpointUrl);
                     }
 
                     $end = microtime(true);
@@ -288,8 +311,32 @@ class BpjsMonitoringControllerDebug extends Controller
                     ->timeout($timeout)
                     ->get($url);
             } else {
-                // For other endpoints, simple request
-                $response = Http::timeout($timeout)->get($url);
+                // Untuk non-BPJS endpoints, gunakan header sesuai per layanan
+                $headers = [
+                    'User-Agent' => 'BPJS-Monitoring/1.0',
+                ];
+
+                $endpointUrl = $url;
+
+                if (strpos($endpointUrl, 'cloudflare-dns.com/dns-query') !== false) {
+                    $headers['Accept'] = 'application/dns-json';
+                    if (strpos($endpointUrl, 'ct=') === false) {
+                        $endpointUrl .= (strpos($endpointUrl, '?') !== false ? '&' : '?') . 'ct=application/dns-json';
+                    }
+                } elseif (strpos($endpointUrl, 'api.github.com') !== false) {
+                    $headers['Accept'] = 'application/vnd.github+json';
+                    $headers['X-GitHub-Api-Version'] = '2022-11-28';
+                    $githubToken = env('GITHUB_TOKEN');
+                    if (!empty($githubToken)) {
+                        $headers['Authorization'] = 'Bearer ' . $githubToken;
+                    }
+                } else {
+                    $headers['Accept'] = 'application/json';
+                }
+
+                $response = Http::withHeaders($headers)
+                    ->timeout($timeout)
+                    ->get($endpointUrl);
             }
             
             $end = microtime(true);

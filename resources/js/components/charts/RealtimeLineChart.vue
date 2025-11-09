@@ -39,8 +39,16 @@ const props = withDefaults(defineProps<Props>(), {
   height: 240,
 });
 
-// Simple color palette for multiple series
-const palette = ['#2563eb', '#16a34a', '#ef4444', '#f59e0b', '#9333ea', '#06b6d4', '#10b981', '#8b5cf6', '#3b82f6', '#14b8a6', '#f97316', '#dc2626'];
+// Brand-aligned color palette (primary, success, warning, danger + accents)
+const palette = [
+  '#2563eb', '#1d4ed8', // primary blues
+  '#22c55e', '#16a34a', // success greens
+  '#f59e0b', '#d97706', // warning ambers
+  '#ef4444', '#dc2626', // danger reds
+  '#06b6d4', '#0891b2', // cyan/teal accents
+  '#9333ea', '#7e22ce', // purple accents
+  '#3b82f6', '#0ea5e9', // extra cool tones
+];
 
 // Build chart data using non-reactive copies to avoid mutation loops
 const chartData = computed(() => {
@@ -84,8 +92,8 @@ const chartData = computed(() => {
   };
 });
 
-const gridColor = computed(() => (props.dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'));
-const tickColor = computed(() => (props.dark ? '#cbd5e1' : '#525252'));
+const gridColor = computed(() => (props.dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)'));
+const tickColor = computed(() => (props.dark ? '#e5e7eb' : '#374151'));
 
 const chartOptions = computed(() => ({
   responsive: true,

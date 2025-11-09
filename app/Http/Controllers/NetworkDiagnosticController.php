@@ -80,7 +80,35 @@ class NetworkDiagnosticController extends Controller
             foreach ($endpoints as $endpoint) {
                 try {
                     $startTime = microtime(true);
-                    $response = Http::timeout(10)->get($endpoint['url']);
+
+                    // Header per layanan baseline
+                    $headers = [
+                        'User-Agent' => 'BPJS-Monitoring/1.0',
+                    ];
+
+                    $endpointUrl = $endpoint['url'];
+
+                    // Khusus Cloudflare DoH
+                    if (strpos($endpointUrl, 'cloudflare-dns.com/dns-query') !== false) {
+                        $headers['Accept'] = 'application/dns-json';
+                        if (strpos($endpointUrl, 'ct=') === false) {
+                            $endpointUrl .= (strpos($endpointUrl, '?') !== false ? '&' : '?') . 'ct=application/dns-json';
+                        }
+                    // Khusus GitHub API
+                    } elseif (strpos($endpointUrl, 'api.github.com') !== false) {
+                        $headers['Accept'] = 'application/vnd.github+json';
+                        $headers['X-GitHub-Api-Version'] = '2022-11-28';
+                        $githubToken = env('GITHUB_TOKEN');
+                        if (!empty($githubToken)) {
+                            $headers['Authorization'] = 'Bearer ' . $githubToken;
+                        }
+                    } else {
+                        $headers['Accept'] = 'application/json';
+                    }
+
+                    $response = Http::timeout(10)
+                        ->withHeaders($headers)
+                        ->get($endpointUrl);
                     $endTime = microtime(true);
                     
                     $responseTime = round(($endTime - $startTime) * 1000); // Convert to ms
