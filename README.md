@@ -2,6 +2,17 @@
 
 Dashboard monitoring modern dan minimalis untuk memantau konektivitas API BPJS secara real-time.
 
+## 📚 Documentation
+- Deployment Guide: `docs/DEPLOYMENT.md`
+- Feature: Custom Endpoints: `docs/CUSTOM_ENDPOINTS_FEATURE.md`
+- Feature: Network Diagnostic: `docs/NETWORK_DIAGNOSTIC.md`
+- Reference: Advanced Features: `docs/ADVANCED_FEATURES.md`
+- Reference: Endpoint Examples: `docs/BPJS_ENDPOINT_EXAMPLES.md`
+- Reference: BPJS Proxy Solution: `docs/BPJS_PROXY_SOLUTION.md`
+- Reference: CSRF Auth Fix: `docs/CSRF_BPJS_AUTH_FIX.md`
+- Reference: LocalStorage System: `docs/LOCALSTORAGE_SYSTEM_DOCUMENTATION.md`
+- Archive Index: `docs/archive/README.md`
+
 ## 🚀 Fitur Utama
 
 ### 1. **Dashboard Overview**

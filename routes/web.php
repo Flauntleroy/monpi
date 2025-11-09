@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Http\Controllers\BpjsMonitoringController;
-use App\Http\Controllers\BpjsMonitoringControllerSimple;
+// Removed: BpjsMonitoringControllerSimple (unused)
 use App\Http\Controllers\BpjsMonitoringControllerDebug;
 use App\Http\Controllers\NetworkDiagnosticController;
 
@@ -12,58 +12,7 @@ Route::get('/', function () {
     return redirect('/bpjs-monitoring');
 })->name('home');
 
-// Test route for real-time fix validation
-Route::get('/test', function () {
-    return redirect('/test-realtime-fix.html');
-})->name('test');
-
-// Debug route for API testing
-Route::get('/api-test', function () {
-    try {
-        $controller = new App\Http\Controllers\BpjsMonitoringControllerDebug();
-        $response = $controller->getMonitoringData();
-        return $response;
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => true,
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-});
-
-// GET route for custom endpoint testing (no CSRF needed)
-Route::get('/test-custom-endpoint-get', function (Request $request) {
-    try {
-        $url = $request->query('url', 'https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/Peserta/nik/6304151101990001/tglSEP/2025-07-31');
-        $controller = new App\Http\Controllers\BpjsMonitoringControllerDebug();
-        $testRequest = new Request();
-        $testRequest->merge([
-            'url' => $url,
-            'method' => 'GET',
-            'timeout' => 10
-        ]);
-        return $controller->testCustomEndpoint($testRequest);
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => true,
-            'message' => $e->getMessage(),
-            'response_time' => 0,
-            'code' => 'ERROR',
-            'status' => 'error',
-            'severity' => 'critical'
-        ], 500);
-    }
-});
-
-// Simple test route
-Route::get('/test-json', function () {
-    return response()->json([
-        'status' => 'success',
-        'message' => 'API is working',
-        'timestamp' => now()->format('Y-m-d H:i:s')
-    ]);
-});
+// Removed multiple dev/test routes for production cleanliness
 
 // Commented out static BPJS data - using real-time controller instead
 /*
@@ -148,39 +97,7 @@ Route::get('dashboard', function () {
 
 // BPJS Monitoring Routes (Public Access for Testing)
 Route::prefix('bpjs-monitoring')->name('bpjs.')->group(function () {
-    // Test route to check if basic route works
-    Route::get('/test-basic', function () {
-        return response()->json([
-            'status' => 'success',
-            'message' => 'BPJS Monitoring route is working',
-            'timestamp' => now()->format('Y-m-d H:i:s')
-        ]);
-    })->name('test.basic');
-    
-    // Simple HTML version for testing
-    Route::get('/simple', function () {
-        return '
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>BPJS Monitoring Dashboard</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-        </head>
-        <body class="bg-gray-100 p-8">
-            <div class="max-w-4xl mx-auto">
-                <h1 class="text-3xl font-bold mb-6">BPJS Monitoring Dashboard</h1>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <p class="mb-4">Dashboard is working! Visit these endpoints:</p>
-                    <ul class="list-disc pl-6 space-y-2">
-                        <li><a href="/bpjs-monitoring/data" class="text-blue-600 hover:underline">Real-time Data API</a></li>
-                        <li><a href="/test-realtime-fix.html" class="text-blue-600 hover:underline">Test Interface</a></li>
-                        <li><a href="/bpjs-monitoring/test-basic" class="text-blue-600 hover:underline">Basic Route Test</a></li>
-                    </ul>
-                </div>
-            </div>
-        </body>
-        </html>';
-    })->name('simple');
+    // Removed: test-basic and simple HTML testing routes
     
     // Gunakan halaman khusus BPJS Monitoring, terpisah dari dashboard default Laravel
     Route::get('/', function () {
@@ -200,14 +117,7 @@ Route::prefix('bpjs-monitoring')->name('bpjs.')->group(function () {
     Route::post('/alerts/{alert}/resolve', [BpjsMonitoringController::class, 'resolveAlert'])->name('alerts.resolve');
     Route::post('/test-custom-endpoint', [BpjsMonitoringControllerDebug::class, 'testCustomEndpoint'])->name('test.custom.endpoint')->withoutMiddleware(['web']);
     
-    // Test route untuk trigger error critical dan notifikasi WhatsApp
-    Route::get('/test-error-404', function () {
-        return response()->json(['message' => 'Test error 404'], 404);
-    })->name('test.error.404');
-    
-    Route::get('/test-error-201', function () {
-        return response()->json(['message' => 'Test error 201'], 201);
-    })->name('test.error.201');
+    // Removed: artificial error test routes
 });
 
 // Legacy route for backward compatibility
