@@ -2,6 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import { ref, onMounted, onUnmounted } from 'vue';
 import AppHeaderLayout from '@/layouts/app/AppHeaderLayout.vue';
+import FloatingThemeToggle from '@/components/FloatingThemeToggle.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
@@ -151,7 +152,7 @@ onUnmounted(() => {
 
 <template>
   <Head title="BPJS Monitoring Dashboard" />
-<AppHeaderLayout :breadcrumbs="breadcrumbs">
+<AppHeaderLayout :breadcrumbs="breadcrumbs" hideHeader>
     <div class="flex h-full flex-1 flex-col gap-6 p-6">
       <!-- Header -->
       <div class="flex items-center justify-between">
@@ -342,5 +343,6 @@ onUnmounted(() => {
         </Card>
       </div>
     </div>
+    <FloatingThemeToggle />
 </AppHeaderLayout>
 </template>

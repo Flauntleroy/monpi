@@ -2,6 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import AppHeaderLayout from '@/layouts/app/AppHeaderLayout.vue';
+import FloatingThemeToggle from '@/components/FloatingThemeToggle.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import RealtimeLineChart from '@/components/charts/RealtimeLineChart.vue';
@@ -801,7 +802,7 @@ watch(safeEndpoints, (eps) => {
 
 <template>
   <Head title="BPJS Monitoring Dashboard" />
-<AppHeaderLayout :breadcrumbs="breadcrumbs">
+  <AppHeaderLayout :breadcrumbs="breadcrumbs" fluid hideHeader>
     <div class="flex h-full flex-1 flex-col gap-6 p-6">
       <!-- Header -->
       <div class="flex items-center justify-between">
@@ -1310,5 +1311,6 @@ watch(safeEndpoints, (eps) => {
         </div>
       </div>
     </div>
+    <FloatingThemeToggle />
 </AppHeaderLayout>
 </template>

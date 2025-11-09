@@ -2,6 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import AppHeaderLayout from '@/layouts/app/AppHeaderLayout.vue';
+import FloatingThemeToggle from '@/components/FloatingThemeToggle.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import VueApexCharts from 'vue3-apexcharts';
@@ -757,7 +758,7 @@ onUnmounted(() => {
 <template>
   <Head title="BPJS API Monitoring" />
   
-<AppHeaderLayout>
+<AppHeaderLayout hideHeader>
     <template #header>
       <div class="flex items-center justify-between">
         <div>
@@ -1334,5 +1335,6 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+  <FloatingThemeToggle />
 </AppHeaderLayout>
 </template>
