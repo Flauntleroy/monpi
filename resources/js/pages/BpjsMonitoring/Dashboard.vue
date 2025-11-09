@@ -777,6 +777,26 @@ const getUptimePercentageForKey = (key: string): number | null => {
 const clearEndpointHistory = (key: string) => {
   endpointHistories.value[key] = [];
 };
+
+// Layout menyamping: state seleksi endpoint & helper
+const selectedKey = ref<string | null>(null);
+const selectEndpoint = (key: string) => { selectedKey.value = key; };
+const getEndpointByKey = (key: string): { endpoint: EndpointData; idx: number } | null => {
+  const eps = safeEndpoints.value;
+  for (let i = 0; i < eps.length; i++) {
+    const k = getEndpointKey(eps[i], i);
+    if (k === key) return { endpoint: eps[i], idx: i };
+  }
+  return null;
+};
+const selected = computed(() => (selectedKey.value ? getEndpointByKey(selectedKey.value) : null));
+
+// Auto-pilih endpoint pertama saat data tersedia
+watch(safeEndpoints, (eps) => {
+  if (!selectedKey.value && eps.length) {
+    selectedKey.value = getEndpointKey(eps[0], 0);
+  }
+}, { immediate: true });
 </script>
 
 <template>
@@ -865,248 +885,236 @@ const clearEndpointHistory = (key: string) => {
         </div>
       </div>
 
-      <!-- Main Content -->
-      <div v-if="monitoringData" class="space-y-6">
-        <!-- Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <!-- Total Endpoints -->
-          <Card>
-            <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle class="text-sm font-medium">Total Endpoints</CardTitle>
-              <Activity class="h-4 w-4 text-blue-500" />
-            </CardHeader>
-            <CardContent>
-              <div class="text-2xl font-bold">{{ monitoringData.summary.total }}</div>
-              <p class="text-xs text-muted-foreground mt-1">Monitored endpoints</p>
-            </CardContent>
-          </Card>
-
-          <!-- Success Rate -->
-          <Card>
-            <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle class="text-sm font-medium">Uptime</CardTitle>
-              <Wifi class="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div class="text-2xl font-bold text-green-600">
-                {{ monitoringData.summary.uptime_percentage }}%
-              </div>
-              <div class="text-xs text-muted-foreground mt-1">
-                {{ monitoringData.summary.uptime_24h ? `24h: ${monitoringData.summary.uptime_24h}%` : 'Current status' }}
-              </div>
-            </CardContent>
-          </Card>
-
-          <!-- Average Response Time -->
-          <Card>
-            <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle class="text-sm font-medium">Avg Response Time</CardTitle>
-              <Zap class="h-4 w-4 text-yellow-500" />
-            </CardHeader>
-            <CardContent>
-              <div class="text-2xl font-bold" :class="getResponseTimeColor(monitoringData.summary.avg_response_time)">
-                {{ Math.round(monitoringData.summary.avg_response_time) }} ms
-              </div>
-              <div class="text-xs text-muted-foreground mt-1">
-                {{ monitoringData.summary.avg_response_time_24h ? `24h: ${Math.round(monitoringData.summary.avg_response_time_24h)}ms` : 'Current average' }}
-              </div>
-            </CardContent>
-          </Card>
-
-          <!-- Status Summary -->
-          <Card>
-            <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle class="text-sm font-medium">Status</CardTitle>
-              <Activity class="h-4 w-4 text-gray-500" />
-            </CardHeader>
-            <CardContent>
-              <div class="flex items-center justify-between">
-                <div class="flex items-center">
-                  <CheckCircle class="w-4 h-4 text-green-500 mr-1" />
-                  <span class="text-sm font-medium">{{ monitoringData.summary.success }}</span>
-                </div>
-                <div class="flex items-center">
-                  <XCircle class="w-4 h-4 text-red-500 mr-1" />
-                  <span class="text-sm font-medium">{{ monitoringData.summary.error }}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-      </div>
-
-      <!-- Real-time Line Chart -->
-      <Card>
-        <CardHeader>
-          <CardTitle>Response Time (Real-time)</CardTitle>
-          <CardDescription>
-            Refresh every {{ Math.round(refreshIntervalMs / 1000) }} sec
-          </CardDescription>
-        </CardHeader>
-      <CardContent>
-          <div class="flex flex-wrap items-center gap-3 mb-3">
-            <label class="text-sm text-gray-600 dark:text-gray-300">Interval</label>
-            <select v-model.number="refreshIntervalMs" class="px-2 py-1 border rounded text-sm">
-              <option :value="10000">10s</option>
-              <option :value="20000">20s</option>
-              <option :value="30000">30s</option>
-              <option :value="60000">60s</option>
-            </select>
-
-            <Button @click="isPaused = !isPaused" size="sm" variant="outline">
-              {{ isPaused ? 'Resume' : 'Pause' }}
-            </Button>
-
-            <label class="text-sm text-gray-600 dark:text-gray-300">Max Points</label>
-            <input type="number" v-model.number="maxPoints" min="10" max="200" class="w-20 px-2 py-1 border rounded text-sm" />
-
-            <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-1">
-              <input type="checkbox" v-model="showTopNSlowest" />
-              Top N slowest
-            </label>
-            <input v-if="showTopNSlowest" type="number" v-model.number="topN" min="1" max="20" class="w-16 px-2 py-1 border rounded text-sm" />
-
-            <!-- <div class="flex items-center gap-2">
-              <span class="text-sm text-gray-600 dark:text-gray-300">Filter endpoints</span>
-              <select multiple v-model="activeEndpointIds" class="min-w-[200px] max-w-[320px] px-2 py-1 border rounded text-sm">
-                <option v-for="ep in availableEndpoints" :key="ep.id" :value="ep.id">{{ ep.label }}</option>
-              </select>
-            </div> -->
-          </div>
-          <RealtimeLineChart :labels="chartLabels" :datasets="displayDatasets" :dark="isDarkChart" />
-      </CardContent>
-      </Card>
-
-      <!-- Endpoints Table -->
-      <Card>
-        <CardHeader>
-          <CardTitle>Endpoint Status</CardTitle>
-          <CardDescription>Real-time status of all monitored endpoints</CardDescription>
+      <!-- Main Content: grid dengan sidebar kiri dan area kanan -->
+      <div v-if="monitoringData" class="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
+        <!-- Sidebar kiri: daftar endpoint -->
+        <Card class="lg:sticky lg:top-6 self-start">
+          <CardHeader>
+            <CardTitle>Monitors</CardTitle>
+            <CardDescription>Daftar endpoint</CardDescription>
           </CardHeader>
           <CardContent>
-            <div class="space-y-3">
-              <div 
-                v-for="(endpoint, idx) in safeEndpoints" 
-                :key="endpoint.customId || endpoint.name || endpoint.url || idx"
-                class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+            <div class="space-y-2">
+              <div
+                v-for="(endpoint, idx) in safeEndpoints"
+                :key="getEndpointKey(endpoint, idx)"
+                @click="selectEndpoint(getEndpointKey(endpoint, idx))"
+                :class="[
+                  'p-3 border rounded-lg cursor-pointer transition-colors',
+                  selectedKey === getEndpointKey(endpoint, idx)
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                ]"
               >
-                <!-- Row header clickable -->
-                <div class="flex items-center justify-between cursor-pointer" @click="toggleExpanded(getEndpointKey(endpoint, idx))">
-                  <div class="flex items-center space-x-4 flex-1">
-                    <div class="flex items-center">
-                      <div :class="getStatusColor(endpoint.status)" class="w-3 h-3 rounded-full mr-3"></div>
-                      <component :is="getStatusIcon(endpoint.status)" class="w-4 h-4 mr-2" :class="{
-                        'text-green-500': endpoint.status === 'success',
-                        'text-yellow-500': endpoint.status === 'timeout',
-                        'text-red-500': endpoint.status === 'error'
-                      }" />
-                    </div>
-                    <div class="flex-1">
-                      <div class="flex items-center space-x-2">
-                        <div class="font-medium text-gray-900 dark:text-white">
-                          {{ endpoint.name || endpoint.url || 'Unknown' }}
-                        </div>
-                        <span v-if="endpoint.isCustom" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-                          Custom
-                        </span>
-                      </div>
-                      <div class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-md">
-                        {{ endpoint.description || endpoint.url }}
-                      </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-3">
+                    <div :class="getStatusColor(endpoint.status)" class="w-2.5 h-2.5 rounded-full"></div>
+                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[180px]">
+                      {{ endpoint.name || endpoint.url || 'Unknown' }}
                     </div>
                   </div>
-                  
-                  <div class="flex items-center space-x-4">
-                    <!-- Custom endpoint actions -->
-                    <div v-if="endpoint.isCustom" class="flex items-center space-x-2">
-                      <Button 
-                        @click.stop="editCustomEndpointById(endpoint.customId)"
-                        variant="ghost"
-                        size="sm"
-                        class="h-8 w-8 p-0"
-                      >
-                        <Edit class="h-3 w-3" />
-                      </Button>
-                      <Button 
-                        @click.stop="deleteCustomEndpoint(endpoint.customId!)"
-                        variant="ghost"
-                        size="sm"
-                        class="h-8 w-8 p-0 text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 class="h-3 w-3" />
-                      </Button>
-                    </div>
-                    
-                    <div class="text-right">
-                      <div class="font-medium" :class="getResponseTimeColor(endpoint.response_time)">
-                        {{ Math.round(endpoint.response_time) }} ms
-                      </div>
-                      <div class="flex items-center space-x-2 mt-1">
-                        <span :class="getBadgeClass(endpoint.status)">
-                          {{ endpoint.code }}
-                        </span>
-                        <span 
-                          v-if="endpoint.severity" 
-                          :class="['text-xs px-2 py-1 rounded-full font-medium', 
-                                   endpoint.severity === 'excellent' ? 'text-green-600 bg-green-100' :
-                                   endpoint.severity === 'good' ? 'text-blue-600 bg-blue-100' :
-                                   endpoint.severity === 'slow' ? 'text-yellow-600 bg-yellow-100' :
-                                   'text-red-600 bg-red-100']"
-                        >
-                          {{ endpoint.severity }}
-                        </span>
-                      </div>
-                    </div>
-                    <component :is="isExpanded(getEndpointKey(endpoint, idx)) ? ChevronUp : ChevronDown" class="w-4 h-4 text-gray-500" />
+                  <div class="text-xs" :class="getBadgeClass(endpoint.status)">
+                    {{ endpoint.code }}
                   </div>
                 </div>
-
-                <!-- Expanded details -->
-                <div v-if="isExpanded(getEndpointKey(endpoint, idx))" class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                    <div class="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-                      <div class="text-xs text-gray-600 dark:text-gray-300">Ping</div>
-                      <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ Math.round(endpoint.response_time) }} ms</div>
-                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Current</p>
-                    </div>
-                    <div class="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-                      <div class="text-xs text-gray-600 dark:text-gray-300">Avg. Ping</div>
-                      <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ getAvgPingForKey(getEndpointKey(endpoint, idx)) ?? '-' }} ms</div>
-                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Session</p>
-                    </div>
-                    <div class="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-                      <div class="text-xs text-gray-600 dark:text-gray-300">Uptime</div>
-                      <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ getUptimePercentageForKey(getEndpointKey(endpoint, idx)) ?? 0 }}%</div>
-                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Session checks</p>
-                    </div>
-                    <div class="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-                      <div class="text-xs text-gray-600 dark:text-gray-300">Status</div>
-                      <div class="text-sm font-semibold" :class="getResponseTimeColor(endpoint.response_time)">{{ endpoint.status }}</div>
-                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Code: {{ endpoint.code }}</p>
-                    </div>
-                  </div>
-
-                  <div class="mt-2">
-                    <RealtimeLineChart :labels="chartLabels" :datasets="getSingleDataset(getEndpointKey(endpoint, idx))" :dark="isDarkChart" />
-                  </div>
-
-                  <div class="mt-4">
-                    <div class="flex items-center justify-between mb-2">
-                      <span class="text-sm font-medium text-gray-900 dark:text-white">Status History</span>
-                      <Button size="sm" variant="outline" @click.stop="clearEndpointHistory(getEndpointKey(endpoint, idx))">Clear Data</Button>
-                    </div>
-                    <div class="text-xs text-gray-600 dark:text-gray-300">
-                      <div v-for="h in (endpointHistories[getEndpointKey(endpoint, idx)] || []).slice(0, 10)" :key="h.timestamp + String(h.code)" class="flex items-center justify-between py-1 border-b border-gray-100 dark:border-gray-800">
-                        <span :class="getBadgeClass(h.status)">{{ h.status }}</span>
-                        <span class="text-gray-500 dark:text-gray-400">{{ h.timestamp }}</span>
-                        <span class="text-gray-700 dark:text-gray-300 truncate max-w-[50%]">{{ h.message }}</span>
-                      </div>
-                    </div>
-                  </div>
+                <div class="mt-2 flex items-center gap-1 flex-wrap">
+                  <span
+                    v-for="(h, i) in (endpointHistories[getEndpointKey(endpoint, idx)] || []).slice(0, 40).reverse()"
+                    :key="i"
+                    :title="h.timestamp + ' • ' + h.status"
+                    :class="[
+                      'h-1.5 w-2 rounded-sm',
+                      h.status === 'success' ? 'bg-green-500' :
+                      h.status === 'timeout' ? 'bg-yellow-500' : 'bg-red-500'
+                    ]"
+                  ></span>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        <!-- Area kanan: summary, chart, dan detail endpoint -->
+        <div class="space-y-6">
+          <!-- Summary Cards -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Total Endpoints -->
+            <Card>
+              <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle class="text-sm font-medium">Total Endpoints</CardTitle>
+                <Activity class="h-4 w-4 text-blue-500" />
+              </CardHeader>
+              <CardContent>
+                <div class="text-2xl font-bold">{{ monitoringData.summary.total }}</div>
+                <p class="text-xs text-muted-foreground mt-1">Monitored endpoints</p>
+              </CardContent>
+            </Card>
+
+            <!-- Success Rate -->
+            <Card>
+              <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle class="text-sm font-medium">Uptime</CardTitle>
+                <Wifi class="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div class="text-2xl font-bold text-green-600">
+                  {{ monitoringData.summary.uptime_percentage }}%
+                </div>
+                <div class="text-xs text-muted-foreground mt-1">
+                  {{ monitoringData.summary.uptime_24h ? `24h: ${monitoringData.summary.uptime_24h}%` : 'Current status' }}
+                </div>
+              </CardContent>
+            </Card>
+
+            <!-- Average Response Time -->
+            <Card>
+              <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle class="text-sm font-medium">Avg Response Time</CardTitle>
+                <Zap class="h-4 w-4 text-yellow-500" />
+              </CardHeader>
+              <CardContent>
+                <div class="text-2xl font-bold" :class="getResponseTimeColor(monitoringData.summary.avg_response_time)">
+                  {{ Math.round(monitoringData.summary.avg_response_time) }} ms
+                </div>
+                <div class="text-xs text-muted-foreground mt-1">
+                  {{ monitoringData.summary.avg_response_time_24h ? `24h: ${Math.round(monitoringData.summary.avg_response_time_24h)}ms` : 'Current average' }}
+                </div>
+              </CardContent>
+            </Card>
+
+            <!-- Status Summary -->
+            <Card>
+              <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle class="text-sm font-medium">Status</CardTitle>
+                <Activity class="h-4 w-4 text-gray-500" />
+              </CardHeader>
+              <CardContent>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center">
+                    <CheckCircle class="w-4 h-4 text-green-500 mr-1" />
+                    <span class="text-sm font-medium">{{ monitoringData.summary.success }}</span>
+                  </div>
+                  <div class="flex items-center">
+                    <XCircle class="w-4 h-4 text-red-500 mr-1" />
+                    <span class="text-sm font-medium">{{ monitoringData.summary.error }}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <!-- Real-time Line Chart -->
+          <Card>
+            <CardHeader>
+              <CardTitle>Response Time (Real-time)</CardTitle>
+              <CardDescription>
+                Refresh every {{ Math.round(refreshIntervalMs / 1000) }} sec
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div class="flex flex-wrap items-center gap-3 mb-3">
+                <label class="text-sm text-gray-600 dark:text-gray-300">Interval</label>
+                <select v-model.number="refreshIntervalMs" class="px-2 py-1 border rounded text-sm">
+                  <option :value="10000">10s</option>
+                  <option :value="20000">20s</option>
+                  <option :value="30000">30s</option>
+                  <option :value="60000">60s</option>
+                </select>
+
+                <Button @click="isPaused = !isPaused" size="sm" variant="outline">
+                  {{ isPaused ? 'Resume' : 'Pause' }}
+                </Button>
+
+                <label class="text-sm text-gray-600 dark:text-gray-300">Max Points</label>
+                <input type="number" v-model.number="maxPoints" min="10" max="200" class="w-20 px-2 py-1 border rounded text-sm" />
+
+                <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                  <input type="checkbox" v-model="showTopNSlowest" />
+                  Top N slowest
+                </label>
+                <input v-if="showTopNSlowest" type="number" v-model.number="topN" min="1" max="20" class="w-16 px-2 py-1 border rounded text-sm" />
+
+                <!-- <div class="flex items-center gap-2">
+                  <span class="text-sm text-gray-600 dark:text-gray-300">Filter endpoints</span>
+                  <select multiple v-model="activeEndpointIds" class="min-w-[200px] max-w-[320px] px-2 py-1 border rounded text-sm">
+                    <option v-for="ep in availableEndpoints" :key="ep.id" :value="ep.id">{{ ep.label }}</option>
+                  </select>
+                </div> -->
+              </div>
+              <RealtimeLineChart :labels="chartLabels" :datasets="displayDatasets" :dark="isDarkChart" />
+            </CardContent>
+          </Card>
+
+          <!-- Detail Endpoint (expanded di bawah chart) -->
+          <Card>
+            <CardHeader>
+              <CardTitle>Detail Endpoint</CardTitle>
+              <CardDescription v-if="selected">Status dan performa terkini</CardDescription>
+            </CardHeader>
+            <CardContent v-if="selected">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-lg font-semibold text-gray-900 dark:text-white">
+                    {{ selected.endpoint.name || selected.endpoint.url || 'Unknown' }}
+                  </div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">
+                    Kode: {{ selected.endpoint.code }} • {{ selected.endpoint.message }}
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="font-medium" :class="getResponseTimeColor(selected.endpoint.response_time)">
+                    {{ Math.round(selected.endpoint.response_time) }} ms
+                  </div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Status: {{ selected.endpoint.status }}</div>
+                </div>
+              </div>
+
+              <div class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                  <div class="text-xs text-gray-600 dark:text-gray-300">Ping</div>
+                  <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ Math.round(selected.endpoint.response_time) }} ms</div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Current</p>
+                </div>
+                <div class="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                  <div class="text-xs text-gray-600 dark:text-gray-300">Avg. Ping</div>
+                  <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ selectedKey ? (getAvgPingForKey(selectedKey) ?? '-') : '-' }} ms</div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Session</p>
+                </div>
+                <div class="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                  <div class="text-xs text-gray-600 dark:text-gray-300">Uptime</div>
+                  <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ selectedKey ? (getUptimePercentageForKey(selectedKey) ?? 0) : 0 }}%</div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Session checks</p>
+                </div>
+                <div class="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                  <div class="text-xs text-gray-600 dark:text-gray-300">Severity</div>
+                  <div class="text-sm font-semibold" :class="getResponseTimeColor(selected.endpoint.response_time)">{{ selected.endpoint.severity || '-' }}</div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Code: {{ selected.endpoint.code }}</p>
+                </div>
+              </div>
+
+              <div class="mt-4">
+                <RealtimeLineChart :labels="chartLabels" :datasets="selectedKey ? getSingleDataset(selectedKey) : []" :dark="isDarkChart" />
+              </div>
+
+              <div class="mt-4">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-sm font-medium text-gray-900 dark:text-white">Status History</span>
+                  <Button size="sm" variant="outline" @click.stop="selectedKey && clearEndpointHistory(selectedKey)">Clear Data</Button>
+                </div>
+                <div class="text-xs text-gray-600 dark:text-gray-300">
+                  <div v-for="h in (selectedKey ? (endpointHistories[selectedKey] || []).slice(0, 10) : [])" :key="h.timestamp + String(h.code)" class="flex items-center justify-between py-1 border-b border-gray-100 dark:border-gray-800">
+                    <span :class="getBadgeClass(h.status)">{{ h.status }}</span>
+                    <span class="text-gray-500 dark:text-gray-400">{{ h.timestamp }}</span>
+                    <span class="text-gray-700 dark:text-gray-300 truncate max-w-[50%]">{{ h.message }}</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            <CardContent v-else>
+              <p class="text-sm text-gray-500 dark:text-gray-400">Pilih endpoint di panel kiri untuk melihat detail.</p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
 
