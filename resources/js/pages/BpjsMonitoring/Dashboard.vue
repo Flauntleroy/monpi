@@ -39,6 +39,13 @@ interface CustomEndpoint {
   useProxy?: boolean; // Flag untuk use backend proxy
 }
 
+// Daftar nama endpoint yang harus diabaikan dari tampilan utama
+const IGNORED_ENDPOINT_NAMES = new Set<string>([
+  'Dokter',
+  'Faskes',
+  'Rujukan by NoRujukan'
+]);
+
 interface EndpointData {
   name: string;
   url: string;
@@ -234,7 +241,7 @@ const apiFetch = async (url: string, options: any = {}) => {
   };
   const token = getCsrfToken();
   if (token) headers['X-CSRF-TOKEN'] = token;
-  const resp = await fetch(url, { ...options, headers });
+  const resp = await fetch(url, { ...options, headers, credentials: 'include' });
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`HTTP ${resp.status}: ${text.slice(0, 300)}`);
@@ -624,7 +631,7 @@ const fetchMonitoringData = async () => {
     // Test custom endpoints and add to the results
     const customResults: EndpointData[] = [];
     const activeCustomEndpoints = customEndpoints.value
-      .filter((ep: any) => ep && typeof ep === 'object' && ep.isActive);
+      .filter((ep: any) => ep && typeof ep === 'object' && ep.isActive && !IGNORED_ENDPOINT_NAMES.has(ep.name));
     
     if (activeCustomEndpoints.length > 0) {
       const customTests = await Promise.allSettled(
@@ -655,11 +662,21 @@ const fetchMonitoringData = async () => {
     
     // Sanitize default endpoints to avoid null/invalid items
     const defaultEndpoints: EndpointData[] = Array.isArray(data.endpoints)
-      ? data.endpoints.filter((ep: any) => ep && typeof ep === 'object' && typeof ep.name === 'string')
+      ? data.endpoints.filter((ep: any) => ep && typeof ep === 'object' && typeof ep.name === 'string' && !IGNORED_ENDPOINT_NAMES.has(ep.name))
       : [];
 
-    // Combine default and custom endpoints
-    const allEndpoints = [...defaultEndpoints, ...customResults];
+    // Combine default and custom endpoints, lalu deduplikasi berdasarkan nama
+    // Prefer default endpoints jika ada duplikasi nama antara default vs custom
+    const combined = [...defaultEndpoints];
+    const nameSet = new Set<string>(defaultEndpoints.map(ep => (ep.name || '').trim().toLowerCase()));
+    for (const ep of customResults) {
+      const key = (ep.name || '').trim().toLowerCase();
+      if (!nameSet.has(key)) {
+        nameSet.add(key);
+        combined.push(ep);
+      }
+    }
+    const allEndpoints = combined;
     
     // Recalculate summary with custom endpoints included
     const totalEndpoints = allEndpoints.length;

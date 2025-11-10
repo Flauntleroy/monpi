@@ -44,7 +44,6 @@ class BpjsMonitoringControllerLocalStorage extends Controller
             ['name' => 'Ruang Rawat', 'url' => $this->api_url . 'referensi/ruangrawat', 'description' => 'Referensi ruang rawat'],
             ['name' => 'Cara Keluar', 'url' => $this->api_url . 'referensi/carakeluar', 'description' => 'Referensi cara keluar'],
             ['name' => 'Pasca Pulang', 'url' => $this->api_url . 'referensi/pascapulang', 'description' => 'Referensi pasca pulang'],
-            ['name' => 'Rujukan by NoRujukan', 'url' => $this->api_url . 'Rujukan/170205010525Y000103', 'description' => 'Data rujukan berdasarkan nomor rujukan'],
             ['name' => 'Rujukan by NoKartu', 'url' => $this->api_url . 'Rujukan/Peserta/0002657364478', 'description' => 'Data rujukan berdasarkan nomor kartu'],
             ['name' => 'Rujukan by TglRujukan', 'url' => $this->api_url . 'Rujukan/List/TglRujukan/' . date('Y-m-d'), 'description' => 'Data rujukan berdasarkan tanggal'],
             // Removed timestamp endpoint - not available (404)

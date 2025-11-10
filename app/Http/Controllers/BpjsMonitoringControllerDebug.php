@@ -25,19 +25,31 @@ class BpjsMonitoringControllerDebug extends Controller
     public function getMonitoringData()
     {
         try {
-            // Endpoint list dengan campuran BPJS dan baseline endpoints
+            // Endpoint list di-hardcode sesuai screenshot (kecuali item merah)
             $endpoints = [
-                // BPJS Endpoints
-                ['name' => 'BPJS Diagnosa', 'url' => $this->api_url . 'referensi/diagnosa/A02', 'description' => 'Referensi data diagnosa BPJS', 'type' => 'bpjs'],
-                ['name' => 'BPJS Poli', 'url' => $this->api_url . 'referensi/poli/INT', 'description' => 'Referensi data poli BPJS', 'type' => 'bpjs'],
-                // ['name' => 'BPJS Faskes', 'url' => $this->api_url . 'referensi/faskes/0101R001/1', 'description' => 'Referensi data fasilitas kesehatan BPJS', 'type' => 'bpjs'],
-                
-                // Baseline Public Endpoints untuk perbandingan
+                // Baseline public endpoints
                 ['name' => 'Google DNS', 'url' => 'https://dns.google/resolve?name=google.com&type=A', 'description' => 'Google Public DNS API', 'type' => 'baseline'],
                 ['name' => 'Cloudflare DNS', 'url' => 'https://cloudflare-dns.com/dns-query?name=cloudflare.com&type=A', 'description' => 'Cloudflare DNS over HTTPS', 'type' => 'baseline'],
-                // ['name' => 'JSONPlaceholder', 'url' => 'https://jsonplaceholder.typicode.com/posts/1', 'description' => 'Test JSON API', 'type' => 'baseline'],
-                // ['name' => 'HTTPBin Status', 'url' => 'https://httpbin.org/status/200', 'description' => 'HTTP status test endpoint', 'type' => 'baseline'],
-                ['name' => 'GitHub API', 'url' => 'https://api.github.com/zen', 'description' => 'GitHub API health check', 'type' => 'baseline']
+
+
+                // Variasi non-prefix "BPJS" sesuai list
+                ['name' => 'Cara Keluar', 'url' => $this->api_url . 'referensi/carakeluar', 'description' => 'Referensi cara keluar', 'type' => 'bpjs'],
+                ['name' => 'Diagnosa', 'url' => $this->api_url . 'referensi/diagnosa/A02', 'description' => 'Referensi data diagnosa', 'type' => 'bpjs'],
+                // (Merah diabaikan): Dokter
+                ['name' => 'Dokter DPJP', 'url' => $this->api_url . 'referensi/dokter/pelayanan/1/tglPelayanan/' . date('Y-m-d') . '/Spesialis/INT', 'description' => 'Referensi dokter DPJP', 'type' => 'bpjs'],
+                // (Merah diabaikan): Faskes
+                ['name' => 'Kabupaten', 'url' => $this->api_url . 'referensi/kabupaten/propinsi/01', 'description' => 'Referensi data kabupaten', 'type' => 'bpjs'],
+                ['name' => 'Kecamatan', 'url' => $this->api_url . 'referensi/kecamatan/kabupaten/0101', 'description' => 'Referensi data kecamatan', 'type' => 'bpjs'],
+                ['name' => 'Kelas Rawat', 'url' => $this->api_url . 'referensi/kelasrawat', 'description' => 'Referensi kelas rawat', 'type' => 'bpjs'],
+                ['name' => 'Pasca Pulang', 'url' => $this->api_url . 'referensi/pascapulang', 'description' => 'Referensi pasca pulang', 'type' => 'bpjs'],
+                ['name' => 'Poli', 'url' => $this->api_url . 'referensi/poli/INT', 'description' => 'Referensi data poli', 'type' => 'bpjs'],
+                ['name' => 'Procedure', 'url' => $this->api_url . 'referensi/procedure/001', 'description' => 'Referensi data prosedur', 'type' => 'bpjs'],
+                ['name' => 'Propinsi', 'url' => $this->api_url . 'referensi/propinsi', 'description' => 'Referensi data propinsi', 'type' => 'bpjs'],
+                ['name' => 'Ruang Rawat', 'url' => $this->api_url . 'referensi/ruangrawat', 'description' => 'Referensi ruang rawat', 'type' => 'bpjs'],
+                ['name' => 'Rujukan by NoKartu', 'url' => $this->api_url . 'Rujukan/Peserta/0002657364478', 'description' => 'Data rujukan berdasarkan nomor kartu', 'type' => 'bpjs'],
+                // (Merah diabaikan): Rujukan by NoRujukan
+                ['name' => 'Rujukan by TglRujukan', 'url' => $this->api_url . 'Rujukan/List/TglRujukan/' . date('Y-m-d'), 'description' => 'Data rujukan berdasarkan tanggal', 'type' => 'bpjs'],
+                ['name' => 'Spesialistik', 'url' => $this->api_url . 'referensi/spesialistik', 'description' => 'Referensi spesialistik', 'type' => 'bpjs']
             ];
 
             $results = [];

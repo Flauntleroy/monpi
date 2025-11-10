@@ -55,7 +55,6 @@ class Monitoring extends CI_Controller
             'Cara Keluar'   => $this->api_url . 'referensi/carakeluar',
             'Pasca Pulang'  => $this->api_url . 'referensi/pascapulang',
             // Monitoring endpoint rujukan
-            'Rujukan by NoRujukan'   => $this->api_url . 'Rujukan/170205010525Y000103', // Ganti dengan no rujukan dummy yang valid jika perlu
             'Rujukan by NoKartu'     => $this->api_url . 'Rujukan/Peserta/0002657364478', // Ganti dengan no kartu dummy yang valid jika perlu
             'Rujukan by TglRujukan'  => $this->api_url . 'Rujukan/List/TglRujukan/' . date('Y-m-d'), // Ganti dengan tanggal rujukan yang valid jika perlu
         ];
@@ -140,7 +139,6 @@ class Monitoring extends CI_Controller
             'Ruang Rawat'   => $this->api_url . 'referensi/ruangrawat',
             'Cara Keluar'   => $this->api_url . 'referensi/carakeluar',
             'Pasca Pulang'  => $this->api_url . 'referensi/pascapulang',
-            'Rujukan by NoRujukan'   => $this->api_url . 'Rujukan/170205010525Y000103',
             'Rujukan by NoKartu'     => $this->api_url . 'Rujukan/Peserta/0002657364478',
             'Rujukan by TglRujukan'  => $this->api_url . 'Rujukan/List/TglRujukan/' . date('Y-m-d'),
         ];
