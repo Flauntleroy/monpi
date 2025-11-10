@@ -225,6 +225,54 @@ const loadCustomEndpoints = () => {
   }
 };
 
+// Server persistence helpers
+const getCsrfToken = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null)?.content;
+const apiFetch = async (url: string, options: any = {}) => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  };
+  const token = getCsrfToken();
+  if (token) headers['X-CSRF-TOKEN'] = token;
+  const resp = await fetch(url, { ...options, headers });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`HTTP ${resp.status}: ${text.slice(0, 300)}`);
+  }
+  const ct = resp.headers.get('content-type');
+  if (ct && ct.includes('application/json')) return resp.json();
+  return null;
+};
+
+const mapServerToClientEndpoint = (ep: any): CustomEndpoint => {
+  const url = ep?.url || '';
+  const isBpjs = url.includes('bpjs-kesehatan.go.') || url.includes('apijkn.bpjs-kesehatan.go.');
+  return {
+    id: String(ep?.id ?? Date.now().toString()),
+    name: ep?.name || '',
+    url,
+    description: ep?.description || '',
+    method: ep?.method || 'GET',
+    headers: ep?.headers || ep?.custom_headers || {},
+    timeout: Number(ep?.timeout ?? ep?.timeout_seconds ?? 10),
+    isActive: Boolean(ep?.isActive ?? ep?.is_active ?? true),
+    isBpjsEndpoint: Boolean(ep?.isBpjsEndpoint ?? isBpjs),
+    useProxy: Boolean(ep?.useProxy ?? ep?.use_proxy ?? isBpjs)
+  };
+};
+
+const loadCustomEndpointsFromServer = async () => {
+  try {
+    const res = await apiFetch('/bpjs-monitoring/custom-endpoints', { method: 'GET' });
+    const list = Array.isArray(res?.data) ? res.data : [];
+    customEndpoints.value = list.map(mapServerToClientEndpoint);
+    saveCustomEndpoints(); // cache locally for offline usage
+  } catch (e) {
+    console.warn('Gagal load dari server, fallback ke localStorage:', e);
+    loadCustomEndpoints();
+  }
+};
+
 // Normalize common BPJS URL typos (e.g., .go.ids → .go.id)
 const normalizeBpjsUrl = (url: string) => {
   const trimmed = (url || '').trim();
@@ -246,7 +294,7 @@ const normalizeBpjsUrl = (url: string) => {
   return { url: normalized, corrected };
 };
 
-const addCustomEndpoint = () => {
+const addCustomEndpoint = async () => {
   if (!newEndpoint.value.name || !newEndpoint.value.url) {
     error.value = 'Name and URL are required';
     return;
@@ -266,21 +314,41 @@ const addCustomEndpoint = () => {
                          normalized.url.includes('apijkn.bpjs-kesehatan.go.') ||
                          normalized.url.includes('bpjs-kesehatan.go.');
 
-  const endpoint: CustomEndpoint = {
-    id: Date.now().toString(),
-    name: newEndpoint.value.name,
-    url: normalized.url,
-    description: newEndpoint.value.description || '',
-    method: newEndpoint.value.method || 'GET',
-    headers: newEndpoint.value.headers || {},
-    timeout: newEndpoint.value.timeout || 10,
-    isActive: newEndpoint.value.isActive !== false,
-    isBpjsEndpoint: isBpjsEndpoint,
-    useProxy: isBpjsEndpoint // Auto-enable proxy for BPJS endpoints
-  };
-
-  customEndpoints.value.push(endpoint);
-  saveCustomEndpoints();
+  try {
+    const payload = {
+      name: newEndpoint.value.name,
+      url: normalized.url,
+      description: newEndpoint.value.description || '',
+      method: newEndpoint.value.method || 'GET',
+      custom_headers: newEndpoint.value.headers || {},
+      timeout_seconds: newEndpoint.value.timeout || 10,
+      is_active: newEndpoint.value.isActive !== false,
+      use_proxy: isBpjsEndpoint
+    };
+    const res = await apiFetch('/bpjs-monitoring/custom-endpoints', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const created = mapServerToClientEndpoint(res?.data);
+    customEndpoints.value.push(created);
+    saveCustomEndpoints();
+  } catch (e) {
+    console.error('Gagal simpan ke server, fallback ke localStorage', e);
+    const endpoint: CustomEndpoint = {
+      id: Date.now().toString(),
+      name: newEndpoint.value.name,
+      url: normalized.url,
+      description: newEndpoint.value.description || '',
+      method: newEndpoint.value.method || 'GET',
+      headers: newEndpoint.value.headers || {},
+      timeout: newEndpoint.value.timeout || 10,
+      isActive: newEndpoint.value.isActive !== false,
+      isBpjsEndpoint: isBpjsEndpoint,
+      useProxy: isBpjsEndpoint
+    };
+    customEndpoints.value.push(endpoint);
+    saveCustomEndpoints();
+  }
   
   // Show warning for BPJS endpoints
   if (isBpjsEndpoint) {
@@ -317,7 +385,7 @@ const editCustomEndpointById = (id?: string) => {
   if (ep) editCustomEndpoint(ep);
 };
 
-const updateCustomEndpoint = () => {
+const updateCustomEndpoint = async () => {
   if (!editingEndpoint.value || !newEndpoint.value.name || !newEndpoint.value.url) {
     error.value = 'Name and URL are required';
     return;
@@ -336,38 +404,69 @@ const updateCustomEndpoint = () => {
                            normalized.url.includes('apijkn.bpjs-kesehatan.go.id') ||
                            normalized.url.includes('new-api.bpjs-kesehatan.go.id');
 
-    customEndpoints.value[index] = {
-      ...editingEndpoint.value,
-      name: newEndpoint.value.name,
-      url: normalized.url,
-      description: newEndpoint.value.description || '',
-      method: newEndpoint.value.method || 'GET',
-      headers: newEndpoint.value.headers || {},
-      timeout: newEndpoint.value.timeout || 10,
-      isActive: newEndpoint.value.isActive !== false,
-      isBpjsEndpoint,
-      // Always enable proxy for BPJS endpoints so backend adds auth headers
-      useProxy: isBpjsEndpoint
-    };
-    
-    saveCustomEndpoints();
+    try {
+      const payload = {
+        name: newEndpoint.value.name,
+        url: normalized.url,
+        description: newEndpoint.value.description || '',
+        method: newEndpoint.value.method || 'GET',
+        custom_headers: newEndpoint.value.headers || {},
+        timeout_seconds: newEndpoint.value.timeout || 10,
+        is_active: newEndpoint.value.isActive !== false,
+        use_proxy: isBpjsEndpoint
+      };
+      const res = await apiFetch(`/bpjs-monitoring/custom-endpoints/${editingEndpoint.value!.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      customEndpoints.value[index] = mapServerToClientEndpoint(res?.data);
+      saveCustomEndpoints();
+    } catch (e) {
+      console.error('Gagal update ke server, simpan lokal', e);
+      customEndpoints.value[index] = {
+        ...editingEndpoint.value,
+        name: newEndpoint.value.name,
+        url: normalized.url,
+        description: newEndpoint.value.description || '',
+        method: newEndpoint.value.method || 'GET',
+        headers: newEndpoint.value.headers || {},
+        timeout: newEndpoint.value.timeout || 10,
+        isActive: newEndpoint.value.isActive !== false,
+        isBpjsEndpoint,
+        useProxy: isBpjsEndpoint
+      };
+      saveCustomEndpoints();
+    }
     closeAddEndpointModal();
     fetchMonitoringData();
   }
 };
 
-const deleteCustomEndpoint = (id: string) => {
+const deleteCustomEndpoint = async (id: string) => {
   if (confirm('Are you sure you want to delete this endpoint?')) {
+    try {
+      await apiFetch(`/bpjs-monitoring/custom-endpoints/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.warn('Gagal hapus di server, lanjut hapus lokal:', e);
+    }
     customEndpoints.value = customEndpoints.value.filter(ep => ep.id !== id);
     saveCustomEndpoints();
     fetchMonitoringData();
   }
 };
 
-const toggleEndpointStatus = (id: string) => {
+const toggleEndpointStatus = async (id: string) => {
   const endpoint = customEndpoints.value.find(ep => ep.id === id);
   if (endpoint) {
     endpoint.isActive = !endpoint.isActive;
+    try {
+      await apiFetch(`/bpjs-monitoring/custom-endpoints/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ is_active: endpoint.isActive })
+      });
+    } catch (e) {
+      console.warn('Gagal toggle di server, simpan lokal:', e);
+    }
     saveCustomEndpoints();
     fetchMonitoringData();
   }
@@ -693,9 +792,9 @@ const getBadgeClass = (status: string) => {
   }
 };
 
-onMounted(() => {
-  loadCustomEndpoints();
-  fetchMonitoringData();
+onMounted(async () => {
+  await loadCustomEndpointsFromServer();
+  await fetchMonitoringData();
   const startInterval = () => {
     if (intervalId) clearInterval(intervalId);
     intervalId = window.setInterval(() => {

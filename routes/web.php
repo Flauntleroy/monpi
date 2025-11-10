@@ -7,6 +7,7 @@ use App\Http\Controllers\BpjsMonitoringController;
 // Removed: BpjsMonitoringControllerSimple (unused)
 use App\Http\Controllers\BpjsMonitoringControllerDebug;
 use App\Http\Controllers\NetworkDiagnosticController;
+use App\Http\Controllers\CustomEndpointController;
 
 Route::get('/', function () {
     return redirect('/bpjs-monitoring');
@@ -116,6 +117,12 @@ Route::prefix('bpjs-monitoring')->name('bpjs.')->group(function () {
     Route::get('/alerts', [BpjsMonitoringController::class, 'getAlerts'])->name('alerts');
     Route::post('/alerts/{alert}/resolve', [BpjsMonitoringController::class, 'resolveAlert'])->name('alerts.resolve');
     Route::post('/test-custom-endpoint', [BpjsMonitoringControllerDebug::class, 'testCustomEndpoint'])->name('test.custom.endpoint')->withoutMiddleware(['web']);
+    
+    // CRUD untuk Custom Endpoints (persist di DB)
+    Route::get('/custom-endpoints', [CustomEndpointController::class, 'index'])->name('custom.endpoints.index');
+    Route::post('/custom-endpoints', [CustomEndpointController::class, 'store'])->name('custom.endpoints.store');
+    Route::put('/custom-endpoints/{endpoint}', [CustomEndpointController::class, 'update'])->name('custom.endpoints.update');
+    Route::delete('/custom-endpoints/{endpoint}', [CustomEndpointController::class, 'destroy'])->name('custom.endpoints.destroy');
     
     // Removed: artificial error test routes
 });

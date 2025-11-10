@@ -18,14 +18,17 @@ class BpjsEndpointConfig extends Model
         'critical_threshold_ms',
         'consecutive_error_threshold',
         'custom_headers',
-        'description'
+        'description',
+        'method',
+        'use_proxy'
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'custom_headers' => 'array',
         'warning_threshold_ms' => 'decimal:2',
-        'critical_threshold_ms' => 'decimal:2'
+        'critical_threshold_ms' => 'decimal:2',
+        'use_proxy' => 'boolean'
     ];
 
     public function scopeActive($query)
