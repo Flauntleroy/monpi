@@ -22,7 +22,8 @@ import {
   Edit,
   ChevronDown,
   ChevronUp,
-  MoreVertical
+  MoreVertical,
+  ExternalLink
 } from 'lucide-vue-next';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 
@@ -898,6 +899,11 @@ const clearEndpointHistory = (key: string) => {
   endpointHistories.value[key] = [];
 };
 
+// Open external Uptime Kuma dashboard
+const openUptimeKuma = () => {
+  window.open('http://192.168.0.2:3001', '_blank', 'noopener,noreferrer');
+};
+
 // Layout menyamping: state seleksi endpoint & helper
 const selectedKey = ref<string | null>(null);
 const selectEndpoint = (key: string) => { selectedKey.value = key; };
@@ -967,6 +973,14 @@ watch(safeEndpoints, (eps) => {
               <RefreshCw :class="{ 'animate-spin': isLoading }" class="w-4 h-4 mr-2" />
               Refresh
             </Button>
+            <Button 
+              @click="openUptimeKuma" 
+              variant="outline"
+              size="sm"
+            >
+              <ExternalLink class="w-4 h-4 mr-2" />
+              Uptime Kuma
+            </Button>
           </div>
 
           <!-- Mobile dropdown actions -->
@@ -990,6 +1004,10 @@ watch(safeEndpoints, (eps) => {
                 <DropdownMenuItem @click="showManageEndpointsModal = true">
                   <Settings class="w-4 h-4 mr-2" />
                   Manage ({{ customEndpoints.length }})
+                </DropdownMenuItem>
+                <DropdownMenuItem @click="openUptimeKuma">
+                  <ExternalLink class="w-4 h-4 mr-2" />
+                  Kuma
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem @click="fetchMonitoringData" :disabled="isLoading">
