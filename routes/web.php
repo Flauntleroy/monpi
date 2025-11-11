@@ -96,6 +96,11 @@ Route::get('dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
+// Mini Monitoring (lite) - hanya card monitors
+Route::get('/mini-monitoring', function () {
+    return Inertia::render('BpjsMonitoring/DashboardLite');
+})->name('mini-monitoring');
+
 // BPJS Monitoring Routes (Public Access for Testing)
 Route::prefix('bpjs-monitoring')->name('bpjs.')->group(function () {
     // Removed: test-basic and simple HTML testing routes
