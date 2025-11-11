@@ -114,8 +114,9 @@ const getStatusIcon = (status: string) => {
 };
 
 const getResponseTimeColor = (responseTime: number) => {
-  if (responseTime < 1000) return 'text-green-600';
-  if (responseTime < 2000) return 'text-yellow-600';
+  const rt = Math.round(responseTime);
+  if (rt < 1000) return 'text-green-600';
+  if (rt < 2000) return 'text-yellow-600';
   return 'text-red-600';
 };
 

@@ -352,9 +352,10 @@ const getStatusBadgeClass = (status) => {
 }
 
 const getResponseTimeColor = (time) => {
-  if (!time) return 'text-gray-500'
-  if (time < 200) return 'text-green-600'
-  if (time < 500) return 'text-yellow-600'
+  if (!time && time !== 0) return 'text-gray-500'
+  const rt = Math.round(time)
+  if (rt < 200) return 'text-green-600'
+  if (rt <= 1000) return 'text-yellow-600'
   return 'text-red-600'
 }
 

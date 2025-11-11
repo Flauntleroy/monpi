@@ -788,9 +788,35 @@ const getStatusIcon = (status: string) => {
 };
 
 const getResponseTimeColor = (responseTime: number) => {
-  if (responseTime < 1000) return 'text-green-600';
-  if (responseTime < 2000) return 'text-yellow-600';
+  const rt = Math.round(responseTime);
+  if (rt < 1000) return 'text-green-600';
+  if (rt < 2000) return 'text-yellow-600';
   return 'text-red-600';
+};
+
+// Badge (background + text) berdasarkan response time
+// Note: Merah hanya untuk RTO / tidak connect (timeout/error),
+// sehingga untuk success tidak pernah merah meskipun lambat.
+const getResponseBadgeClass = (responseTime: number) => {
+  const rt = Math.round(responseTime);
+  if (rt < 1000) {
+    return 'inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800';
+  }
+  // >= 1000ms dianggap lambat -> kuning
+  return 'inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800';
+};
+
+// Warna heartbeat (dot) berdasar status + response time
+// Merah hanya untuk RTO/timeout atau error (tidak connect),
+// success lambat ditandai kuning.
+const getHeartbeatDotClass = (h: EndpointHistoryEntry) => {
+  const rt = Math.round(h.response_time);
+  if (h.status === 'success') {
+    if (rt >= 1000) return 'bg-yellow-500';
+    return 'bg-green-500';
+  }
+  if (h.status === 'timeout' || h.status === 'error') return 'bg-red-500';
+  return 'bg-gray-500';
 };
 
 const formatTime = (timeString: string) => {
@@ -802,8 +828,10 @@ const getBadgeClass = (status: string) => {
     case 'success':
       return 'inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800';
     case 'timeout':
-      return 'inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800';
+      // Timeout (RTO) -> merah
+      return 'inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800';
     case 'error':
+      // Tidak connect / error -> merah
       return 'inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800';
     default:
       return 'inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800';
@@ -1083,7 +1111,8 @@ watch(safeEndpoints, (eps) => {
                       {{ endpoint.name || endpoint.url || 'Unknown' }}
                     </div>
                   </div>
-                  <div class="text-xs font-mono" :class="getBadgeClass(endpoint.status)">
+                  <div class="text-xs font-mono"
+                       :class="endpoint.status === 'success' ? getResponseBadgeClass(endpoint.response_time) : getBadgeClass(endpoint.status)">
                     {{ endpoint.status === 'success' ? (Math.round(endpoint.response_time) + ' ms') : endpoint.code }}
                   </div>
                 </div>
@@ -1091,12 +1120,8 @@ watch(safeEndpoints, (eps) => {
                   <span
                     v-for="(h, i) in (endpointHistories[getEndpointKey(endpoint, idx)] || []).slice(0, 30).reverse()"
                     :key="i"
-                    :title="h.timestamp + ' • ' + h.status"
-                    :class="[
-                      'h-1.5 w-2 rounded-sm',
-                      h.status === 'success' ? 'bg-green-500' :
-                      h.status === 'timeout' ? 'bg-yellow-500' : 'bg-red-500'
-                    ]"
+                    :title="h.timestamp + ' • ' + h.status + ' • ' + h.response_time + ' ms'"
+                    :class="['h-1.5 w-2 rounded-sm', getHeartbeatDotClass(h)]"
                   ></span>
                 </div>
               </div>
@@ -1201,7 +1226,8 @@ watch(safeEndpoints, (eps) => {
                         {{ endpoint.name || endpoint.url || 'Unknown' }}
                       </div>
                     </div>
-                    <div class="text-xs font-mono" :class="getBadgeClass(endpoint.status)">
+                    <div class="text-xs font-mono"
+                         :class="endpoint.status === 'success' ? getResponseBadgeClass(endpoint.response_time) : getBadgeClass(endpoint.status)">
                       {{ endpoint.status === 'success' ? (Math.round(endpoint.response_time) + ' ms') : endpoint.code }}
                     </div>
                   </div>
@@ -1209,12 +1235,8 @@ watch(safeEndpoints, (eps) => {
                     <span
                       v-for="(h, i) in (endpointHistories[getEndpointKey(endpoint, idx)] || []).slice(0, 30).reverse()"
                       :key="i"
-                      :title="h.timestamp + ' • ' + h.status"
-                      :class="[
-                        'h-1.5 w-2 rounded-sm',
-                        h.status === 'success' ? 'bg-green-500' :
-                        h.status === 'timeout' ? 'bg-yellow-500' : 'bg-red-500'
-                      ]"
+                      :title="h.timestamp + ' • ' + h.status + ' • ' + h.response_time + ' ms'"
+                      :class="['h-1.5 w-2 rounded-sm', getHeartbeatDotClass(h)]"
                     ></span>
                   </div>
                 </div>
@@ -1388,8 +1410,14 @@ watch(safeEndpoints, (eps) => {
                   <Button size="sm" variant="outline" @click.stop="selectedKey && clearEndpointHistory(selectedKey)">Clear Data</Button>
                 </div>
                 <div class="text-xs text-gray-600 dark:text-gray-300">
-                  <div v-for="h in (selectedKey ? (endpointHistories[selectedKey] || []).slice(0, 10) : [])" :key="h.timestamp + String(h.code)" class="flex items-center justify-between py-1 border-b border-gray-100 dark:border-gray-800">
+                  <div v-for="h in (selectedKey ? (endpointHistories[selectedKey] || []).slice(0, 10) : [])" :key="h.timestamp + String(h.code)" class="flex items-center justify-between gap-2 py-1 border-b border-gray-100 dark:border-gray-800">
                     <span :class="getBadgeClass(h.status)">{{ h.status }}</span>
+                    <span
+                      class="text-xs font-mono"
+                      :class="h.status === 'success' ? getResponseBadgeClass(h.response_time) : getBadgeClass(h.status)"
+                    >
+                      {{ Math.round(h.response_time) }} ms
+                    </span>
                     <span class="text-gray-500 dark:text-gray-400">{{ h.timestamp }}</span>
                     <span class="text-gray-700 dark:text-gray-300 truncate max-w-[50%]">{{ h.message }}</span>
                   </div>

@@ -12,9 +12,9 @@ class BpjsMonitoringControllerSimple extends Controller
 {
     // Kredensial BPJS
     private $api_url = 'https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/';
-    private $consid = '17432';
-    private $secretkey = '3nK53BBE23';
-    private $user_key = '1823bb1d8015aee02180ee12d2af2b2c';
+    private $consid = 'xxxxxxx';
+    private $secretkey = 'xxxxxxxxx';
+    private $user_key = 'xxxxxxxxxx';
 
     public function index()
     {

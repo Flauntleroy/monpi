@@ -17,16 +17,9 @@ class BpjsMonitoringController extends Controller
 {
     // Kredensial BPJS
     private $api_url = 'https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/';
-    private $consid;
-    private $secretkey;
-    private $user_key;
-
-    public function __construct()
-    {
-        $this->consid = config('bpjs.consid');
-        $this->secretkey = config('bpjs.secretkey');
-        $this->user_key = config('bpjs.user_key');
-    }
+    private $consid = 'xxxx';
+    private $secretkey = 'xxxxx';
+    private $user_key = 'xxxxx';
 
     public function index()
     {
