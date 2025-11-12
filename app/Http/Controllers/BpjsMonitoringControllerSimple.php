@@ -31,9 +31,8 @@ class BpjsMonitoringControllerSimple extends Controller
 
     private function performMonitoring()
     {
-        date_default_timezone_set('UTC');
-        $tStamp = strval(time() - strtotime("1970-01-01 00:00:00"));
-        $checkedAt = Carbon::now();
+        $tStamp = (string) time();
+        $checkedAt = Carbon::now(config('app.timezone'));
 
         $endpoints = [
             ['name' => 'Diagnosa', 'url' => $this->api_url . 'referensi/diagnosa/A00', 'description' => 'Referensi data diagnosa'],
@@ -313,8 +312,7 @@ class BpjsMonitoringControllerSimple extends Controller
 
     private function getBpjsHeaders(): array
     {
-        date_default_timezone_set('UTC');
-        $tStamp = strval(time() - strtotime("1970-01-01 00:00:00"));
+        $tStamp = (string) time();
         $signature = base64_encode(hash_hmac('sha256', $this->consid . '&' . $tStamp, $this->secretkey, true));
         
         return [
