@@ -132,6 +132,11 @@ Route::prefix('bpjs-monitoring')->name('bpjs.')->group(function () {
     // Removed: artificial error test routes
 });
 
+// Sensor Monitoring (DHT22)
+Route::get('/sensor-monitoring', function () {
+    return Inertia::render('Sensors/DhtMonitoring');
+})->name('sensor.monitoring');
+
 // Legacy route for backward compatibility
 Route::get('/api/bpjs-monitoring/data', [BpjsMonitoringControllerDebug::class, 'getMonitoringData'])->name('bpjs.legacy.data');
 

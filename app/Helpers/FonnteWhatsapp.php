@@ -8,6 +8,61 @@ use Illuminate\Support\Facades\Cache;
 
 class FonnteWhatsapp
 {
+    /**
+     * Simple sender used by sensor alerts. Respects env toggles and cooldown.
+     */
+    public static function sendSensorAlert(string $message, int $cooldownMinutes = 15, ?string $phone = null)
+    {
+        try {
+            if (!env('FONNTE_ENABLED', true)) {
+                Log::info('WhatsApp sending disabled via FONNTE_ENABLED');
+                return ['status' => false, 'message' => 'WhatsApp disabled'];
+            }
+
+            $phone = $phone ?: env('FONNTE_TARGET', '6281256180502');
+            $cacheKey = 'sensor_alert_' . md5(($phone ?: '') . '_' . $message);
+
+            if (Cache::has($cacheKey)) {
+                Log::info('WhatsApp sensor alert skipped (cooldown active)', [
+                    'phone' => $phone,
+                    'message' => $message,
+                    'cooldown_minutes' => $cooldownMinutes,
+                ]);
+                return ['status' => 'skipped', 'message' => 'Alert skipped due to cooldown'];
+            }
+
+            $token = env('FONNTE_TOKEN');
+            if (!$token) {
+                Log::warning('FONNTE_TOKEN not configured');
+                return ['status' => false, 'message' => 'FONNTE token missing'];
+            }
+
+            Log::info('Sending WhatsApp sensor alert', [ 'phone' => $phone, 'message' => $message ]);
+
+            $response = Http::withHeaders([
+                'Authorization' => $token,
+            ])->asForm()->post('https://api.fonnte.com/send', [
+                'target' => $phone,
+                'message' => $message,
+            ]);
+
+            $result = $response->json();
+
+            Log::info('WhatsApp API Response (sensor)', [
+                'status' => $response->status(),
+                'response' => $result,
+            ]);
+
+            if ($response->successful()) {
+                Cache::put($cacheKey, true, now()->addMinutes($cooldownMinutes));
+            }
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::error('WhatsApp sensor alert failed', [ 'error' => $e->getMessage() ]);
+            return ['status' => 'error', 'message' => $e->getMessage()];
+        }
+    }
     public static function send($message, $phone = null, $cooldownMinutes = 15)
     {
         // try {

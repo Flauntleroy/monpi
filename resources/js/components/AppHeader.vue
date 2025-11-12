@@ -44,6 +44,11 @@ const mainNavItems: NavItem[] = [
         href: '/bpjs-monitoring',
         icon: Activity,
     },
+    {
+        title: 'Sensor Monitoring',
+        href: '/sensor-monitoring',
+        icon: Activity,
+    },
 ];
 
 const rightNavItems: NavItem[] = [

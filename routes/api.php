@@ -2,6 +2,11 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\NetworkDiagnosticController;
+use App\Http\Controllers\SensorDhtController;
 
-// Network Diagnostic Routes
-Route::get('/api/network-diagnostic', [NetworkDiagnosticController::class, 'getDiagnosticData']);
+// Network Diagnostic Routes (prefix 'api' otomatis oleh group API)
+Route::get('/network-diagnostic', [NetworkDiagnosticController::class, 'getDiagnosticData']);
+
+// Sensor DHT22 API (NodeMCU)
+Route::post('/sensors/dht', [SensorDhtController::class, 'store']);
+Route::get('/sensors/dht/recent', [SensorDhtController::class, 'recent']);
