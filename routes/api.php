@@ -15,3 +15,21 @@ Route::get('/sensors/dht/recent', [SensorDhtController::class, 'recent']);
 Route::post('/sensors/dht/debug', function () {
     return response()->json(['message' => 'Debug endpoint working']);
 });
+Route::post('/sensors/dht/test', function (Illuminate\Http\Request $request) {
+    \Log::info('Debug POST /api/sensors/dht/test', [
+        'headers' => $request->headers->all(),
+        'body' => $request->all(),
+        'raw' => $request->getContent(),
+        'method' => $request->method(),
+        'content_type' => $request->header('Content-Type'),
+    ]);
+
+    return response()->json([
+        'message' => 'Debug endpoint',
+        'headers' => $request->headers->all(),
+        'body' => $request->all(),
+        'raw' => $request->getContent(),
+        'method' => $request->method(),
+        'content_type' => $request->header('Content-Type'),
+    ]);
+});
