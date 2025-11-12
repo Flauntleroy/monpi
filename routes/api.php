@@ -10,3 +10,8 @@ Route::get('/network-diagnostic', [NetworkDiagnosticController::class, 'getDiagn
 // Sensor DHT22 API (NodeMCU)
 Route::post('/sensors/dht', [SensorDhtController::class, 'store']);
 Route::get('/sensors/dht/recent', [SensorDhtController::class, 'recent']);
+
+// Debug route untuk testing
+Route::post('/sensors/dht/debug', function () {
+    return response()->json(['message' => 'Debug endpoint working']);
+});
