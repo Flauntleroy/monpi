@@ -6,10 +6,10 @@
     <title>Preview Sensor Monitoring</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Fetch data dari test endpoint
+        // Fetch data dari mock API
         async function loadSensorData() {
             try {
-                const response = await fetch('/test-sensor-data.php');
+                const response = await fetch('/api/sensor-monitoring/data.php');
                 const data = await response.json();
                 displayData(data);
             } catch (error) {
@@ -68,7 +68,7 @@
             const readingsTable = document.getElementById('readings-table');
             readingsTable.innerHTML = '';
             
-            data.recent_readings.slice(-20).reverse().forEach(reading => {
+            data.recent_readings.slice(0, 100).forEach(reading => {
                 const tempColor = reading.temperature_c < 18 ? 'text-blue-600' : 
                                 reading.temperature_c > 30 ? 'text-red-600' : 'text-green-600';
                 
@@ -95,8 +95,8 @@
         // Load data on page load
         window.addEventListener('load', loadSensorData);
         
-        // Auto refresh every 30 seconds
-        setInterval(loadSensorData, 30000);
+        // Auto refresh every 5 seconds
+        setInterval(loadSensorData, 5000);
     </script>
 </head>
 <body class="bg-gray-50">
@@ -196,7 +196,7 @@
                 <div class="bg-white rounded-lg shadow">
                     <div class="p-6 border-b border-gray-200">
                         <h2 class="text-lg font-semibold text-gray-900">Data Terbaru</h2>
-                        <p class="text-sm text-gray-600">20 data terakhir</p>
+                        <p class="text-sm text-gray-600">100 data terakhir</p>
                     </div>
                     <div class="p-6">
                         <div class="overflow-x-auto">

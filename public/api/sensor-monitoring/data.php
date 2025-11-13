@@ -4,12 +4,15 @@
 // File ini untuk testing tanpa Laravel framework
 
 header('Content-Type: application/json');
+header('Cache-Control: no-store, no-cache, must-revalidate');
+header('Pragma: no-cache');
+header('Expires: 0');
 
 // Simulasi data dari tabel sensors
 $mockData = [
     'summary' => [
-        'total_readings' => 150,
-        'devices_count' => 3,
+        'total_readings' => 100,
+        'devices_count' => 1,
         'avg_temperature' => 25.5,
         'avg_humidity' => 65.2,
         'min_temperature' => 18.3,
@@ -21,7 +24,7 @@ $mockData = [
     ],
     'devices' => [
         [
-            'device_id' => 'nodemcu-1',
+            'device_id' => 'Servo DHT22',
             'temperature_c' => 25.8,
             'humidity' => 64.5,
             'recorded_at' => date('c', time() - 120),
@@ -29,7 +32,7 @@ $mockData = [
             'last_seen_minutes' => 2,
         ],
         [
-            'device_id' => 'nodemcu-2',
+            'device_id' => 'Servo DHT22',
             'temperature_c' => 24.9,
             'humidity' => 67.2,
             'recorded_at' => date('c', time() - 480),
@@ -37,7 +40,7 @@ $mockData = [
             'last_seen_minutes' => 8,
         ],
         [
-            'device_id' => 'esp32-1',
+            'device_id' => 'Servo DHT22',
             'temperature_c' => 26.1,
             'humidity' => 62.8,
             'recorded_at' => date('c', time() - 1200),
@@ -46,24 +49,19 @@ $mockData = [
         ],
     ],
     'recent_readings' => [],
-    'devices_list' => ['nodemcu-1', 'nodemcu-2', 'esp32-1'],
+    'devices_list' => ['Servo DHT22'],
     'timestamp' => date('c'),
 ];
 
-// Generate dummy readings untuk testing
-$devices = ['nodemcu-1', 'nodemcu-2', 'esp32-1'];
-$baseTime = time() - (2 * 3600); // 2 hours ago
-
+// Generate dummy readings untuk testing (100 data terakhir, interval 5 detik)
 for ($i = 0; $i < 100; $i++) {
-    $timeOffset = $i * 120; // Every 2 minutes
-    $deviceIndex = $i % 3;
-    
+    $timestamp = time() - ($i * 5);
     $mockData['recent_readings'][] = [
         'id' => $i + 1,
-        'device_id' => $devices[$deviceIndex],
-        'temperature_c' => 20 + (rand(0, 150) / 10), // 20.0 - 35.0
-        'humidity' => 40 + rand(0, 400) / 10, // 40.0 - 80.0
-        'recorded_at' => date('c', $baseTime + $timeOffset),
+        'device_id' => 'Servo DHT22',
+        'temperature_c' => 24 + (rand(0, 200) / 10),
+        'humidity' => 55 + (rand(0, 300) / 10),
+        'recorded_at' => date('c', $timestamp),
     ];
 }
 

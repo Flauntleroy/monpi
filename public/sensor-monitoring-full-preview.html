@@ -216,7 +216,7 @@
                 <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
                     <div class="p-6 border-b border-gray-200 dark:border-gray-700">
                         <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Data Terbaru</h2>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">20 data terakhir</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">100 data terakhir</p>
                     </div>
                     <div class="p-6">
                         <div class="overflow-x-auto">
@@ -310,10 +310,10 @@
         // Set initial timestamp
         document.getElementById('last-update').textContent = new Date().toLocaleString();
         
-        // Auto refresh every 30 seconds
+        // Auto refresh every 5 seconds
         setInterval(() => {
             document.getElementById('last-update').textContent = new Date().toLocaleString();
-        }, 30000);
+        }, 5000);
     </script>
 </body>
 </html>

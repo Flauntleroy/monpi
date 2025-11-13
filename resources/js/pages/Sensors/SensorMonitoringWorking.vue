@@ -77,7 +77,7 @@ const isDarkChart = ref(false);
 
 // Chart controls
 const maxPoints = ref(50);
-const refreshIntervalMs = ref(30000);
+const refreshIntervalMs = ref(5000);
 const isPaused = ref(false);
 const showTemperatureOnly = ref(false);
 
@@ -156,6 +156,10 @@ const getHumidityBadgeClass = (humidity: number) => {
   if (humidity < 30) return 'inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800';
   if (humidity > 70) return 'inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800';
   return 'inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800';
+};
+
+const deviceDisplayName = (id: string) => {
+  return 'Servo DHT22';
 };
 
 const updateIsDarkChart = () => {
@@ -378,7 +382,7 @@ onUnmounted(() => {
               >
                 <option :value="null">Semua Perangkat</option>
                 <option v-for="device in monitoringData.devices_list" :key="device" :value="device">
-                  {{ device }}
+                  {{ deviceDisplayName(device) }}
                 </option>
               </select>
             </div>
@@ -399,7 +403,7 @@ onUnmounted(() => {
                   <div class="flex items-center space-x-3">
                     <div :class="getStatusColor(device.status)" class="w-2.5 h-2.5 rounded-full"></div>
                     <div class="text-sm font-medium text-gray-900 dark:text-white">
-                      {{ device.device_id }}
+                      {{ deviceDisplayName(device.device_id) }}
                     </div>
                   </div>
                   <div class="text-xs text-gray-500 dark:text-gray-400">
@@ -501,7 +505,7 @@ onUnmounted(() => {
               >
                 <option :value="null">Semua Perangkat</option>
                 <option v-for="device in monitoringData.devices_list" :key="device" :value="device">
-                  {{ device }}
+                  {{ deviceDisplayName(device) }}
                 </option>
               </select>
               
@@ -515,7 +519,7 @@ onUnmounted(() => {
                     <div class="flex items-center space-x-3">
                       <div :class="getStatusColor(device.status)" class="w-2.5 h-2.5 rounded-full"></div>
                       <div class="text-sm font-medium text-gray-900 dark:text-white">
-                        {{ device.device_id }}
+                        {{ deviceDisplayName(device.device_id) }}
                       </div>
                     </div>
                     <div class="text-xs">
@@ -612,6 +616,7 @@ onUnmounted(() => {
               <div class="flex flex-wrap items-center gap-3 mb-3">
                 <label class="text-sm text-gray-600 dark:text-gray-300">Interval</label>
                 <select v-model.number="refreshIntervalMs" class="px-2 py-1 border rounded text-sm bg-white dark:bg-gray-700">
+                  <option :value="5000">5s</option>
                   <option :value="10000">10s</option>
                   <option :value="20000">20s</option>
                   <option :value="30000">30s</option>
@@ -640,7 +645,7 @@ onUnmounted(() => {
               <CardTitle>Data Terbaru</CardTitle>
               <CardDescription>
                 {{ filteredReadings.length }} data terakhir 
-                <span v-if="selectedDevice">dari {{ selectedDevice }}</span>
+                <span v-if="selectedDevice">dari {{ deviceDisplayName(selectedDevice) }}</span>
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -655,9 +660,9 @@ onUnmounted(() => {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="reading in filteredReadings.slice(-20).reverse()" :key="`${reading.device_id}-${reading.recorded_at}`" class="border-b">
+                    <tr v-for="reading in filteredReadings.slice(0, 100)" :key="`${reading.device_id}-${reading.recorded_at}`" class="border-b">
                       <td class="px-2 py-2">{{ new Date(reading.recorded_at).toLocaleString() }}</td>
-                      <td class="px-2 py-2">{{ reading.device_id }}</td>
+                      <td class="px-2 py-2">{{ deviceDisplayName(reading.device_id) }}</td>
                       <td class="px-2 py-2">
                         <span :class="getTempColor(reading.temperature_c)">
                           {{ reading.temperature_c.toFixed(1) }}

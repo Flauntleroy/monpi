@@ -98,7 +98,9 @@ class SensorMonitoringController extends Controller
                 }),
                 'devices_list' => $devices,
                 'timestamp' => now()->toIso8601String(),
-            ]);
+            ])->header('Cache-Control', 'no-store, no-cache, must-revalidate')
+              ->header('Pragma', 'no-cache')
+              ->header('Expires', '0');
             
         } catch (\Exception $e) {
             Log::error('Sensor monitoring error: ' . $e->getMessage());
