@@ -22,11 +22,13 @@
         {{-- Inline style to set the HTML background color based on our theme in app.css --}}
         <style>
             html {
-                background-color: oklch(1 0 0);
+                background: linear-gradient(135deg, #141E30 0%, #35577D 100%);
+                background-attachment: fixed;
             }
 
             html.dark {
-                background-color: oklch(0.145 0 0);
+                background: linear-gradient(135deg, #141E30 0%, #35577D 100%);
+                background-attachment: fixed;
             }
         </style>
 

@@ -141,6 +141,11 @@ Route::get('/sensor-monitoring', function () {
 // Sensor Monitoring API
 Route::get('/sensor-monitoring/data', [SensorMonitoringController::class, 'index']);
 
+// DHT22 Mobile View
+Route::get('/sensor', function () {
+    return Inertia::render('Sensors/SensorDHT22Mobile');
+})->name('sensor');
+
 // Legacy route for backward compatibility
 Route::get('/api/bpjs-monitoring/data', [BpjsMonitoringControllerDebug::class, 'getMonitoringData'])->name('bpjs.legacy.data');
 
