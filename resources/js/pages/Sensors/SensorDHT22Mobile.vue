@@ -16,6 +16,16 @@ import {
   AlertTriangle
 } from 'lucide-vue-next';
 
+type Snowflake = {
+  left: number;
+  size: number;
+  delay: number;
+  duration: number;
+  opacity: number;
+};
+
+const snowflakes = ref<Snowflake[]>([]);
+
 interface SensorReading {
   id: number;
   device_id: string;
@@ -198,6 +208,19 @@ onMounted(async () => {
   updateIsDarkChart();
   const mql = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   const handler = () => updateIsDarkChart();
+  // Init snowfall flakes (background effect)
+  const count = 60;
+  const flakes: Snowflake[] = [];
+  for (let i = 0; i < count; i++) {
+    flakes.push({
+      left: Math.random() * 100,
+      size: 2 + Math.random() * 3,
+      delay: Math.floor(Math.random() * 8000),
+      duration: 12000 + Math.floor(Math.random() * 10000),
+      opacity: 0.25 + Math.random() * 0.5,
+    });
+  }
+  snowflakes.value = flakes;
   if (mql) mql.addEventListener('change', handler);
   (isDarkChart as any)._mql = mql;
   (isDarkChart as any)._handler = handler;
@@ -214,7 +237,23 @@ onUnmounted(() => {
 <template>
   <Head title="DHT22 Mobile Monitoring" />
   <AppHeaderLayout :breadcrumbs="breadcrumbs" fluid hideHeader>
-    <div class="flex h-full flex-1 flex-col gap-5 p-4">
+    <!-- Snowfall overlay -->
+    <div class="snow-container pointer-events-none fixed inset-0 z-0">
+      <span
+        v-for="(f, idx) in snowflakes"
+        :key="`flake-${idx}`"
+        class="snowflake"
+        :style="{
+          left: f.left + '%',
+          width: f.size + 'px',
+          height: f.size + 'px',
+          opacity: String(f.opacity),
+          animationDelay: `${f.delay}ms, 0s`,
+          animationDuration: `${f.duration}ms, 3s`,
+        }"
+      />
+    </div>
+    <div class="relative z-10 flex h-full flex-1 flex-col gap-5 p-4">
       <div v-if="error" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
         <div class="flex items-center">
           <AlertTriangle class="w-5 h-5 text-red-500 mr-2" />
@@ -240,7 +279,9 @@ onUnmounted(() => {
               <div class="p-5 relative">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-3">
-                    <div :class="getStatusColor(currentDeviceStatus?.status || 'offline')" class="w-2.5 h-2.5 rounded-full"></div>
+                    <div :class="[ 'status-pulse', (currentDeviceStatus?.status === 'online' ? 'text-green-500' : currentDeviceStatus?.status === 'warning' ? 'text-yellow-500' : 'text-red-500') ]">
+                      <div :class="getStatusColor(currentDeviceStatus?.status || 'offline')" class="w-2.5 h-2.5 rounded-full"></div>
+                    </div>
                     <div class="text-sm font-semibold text-white">{{ deviceDisplayName(currentDeviceStatus?.device_id || '') }}</div>
                   </div>
                   <Button @click="fetchMonitoringData" :disabled="isLoading" variant="outline" size="sm" class="bg-white/10 border-white/20 text-white hover:bg-white/20">
@@ -249,21 +290,21 @@ onUnmounted(() => {
                   </Button>
                 </div>
                 <div class="mt-4 grid grid-cols-2 gap-4">
-                  <div @click="openLatest('temperature')" class="rounded-2xl p-4 ring-1 ring-white/20 text-white bg-white/10 backdrop-blur-md shadow-md hover:bg-white/15 transition-colors">
+                  <div @click="openLatest('temperature')" title="Klik untuk lihat 10 data terbaru" class="rounded-2xl p-4 ring-1 ring-white/20 text-white bg-white/10 backdrop-blur-md shadow-md hover:bg-white/15 transition-colors clickable-card hover-lift">
                     <div class="flex items-center justify-between">
                       <div class="text-xs">Temperature</div>
                       <Thermometer class="w-4 h-4" />
                     </div>
-                    <div class="mt-2 text-3xl font-bold" :class="latestReading ? '' : 'text-white/70'">
+                    <div class="mt-2 text-3xl font-bold shine-text" :class="latestReading ? '' : 'text-white/70'">
                       {{ latestReading ? latestReading.temperature_c.toFixed(1) : '--' }}°C
                     </div>
                   </div>
-                  <div @click="openLatest('humidity')" class="rounded-2xl p-4 ring-1 ring-white/20 text-white bg-white/10 backdrop-blur-md shadow-md hover:bg-white/15 transition-colors">
+                  <div @click="openLatest('humidity')" title="Klik untuk lihat 10 data terbaru" class="rounded-2xl p-4 ring-1 ring-white/20 text-white bg-white/10 backdrop-blur-md shadow-md hover:bg-white/15 transition-colors clickable-card hover-lift">
                     <div class="flex items-center justify-between">
                       <div class="text-xs">Humidity</div>
                       <Droplets class="w-4 h-4" />
                     </div>
-                    <div class="mt-2 text-3xl font-bold" :class="latestReading ? '' : 'text-white/70'">
+                    <div class="mt-2 text-3xl font-bold shine-text" :class="latestReading ? '' : 'text-white/70'">
                       {{ latestReading ? latestReading.humidity.toFixed(1) : '--' }}%
                     </div>
                   </div>
