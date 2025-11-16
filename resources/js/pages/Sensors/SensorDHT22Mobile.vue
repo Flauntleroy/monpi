@@ -236,7 +236,7 @@ onUnmounted(() => {
                 <div class="mt-4 grid grid-cols-2 gap-4">
                   <div class="rounded-2xl p-4 ring-1 ring-white/20 text-white bg-white/10 backdrop-blur-md shadow-md hover:bg-white/15 transition-colors">
                     <div class="flex items-center justify-between">
-                      <div class="text-xs">Suhu</div>
+                      <div class="text-xs">Temperature</div>
                       <Thermometer class="w-4 h-4" />
                     </div>
                     <div class="mt-2 text-3xl font-bold" :class="latestReading ? '' : 'text-white/70'">
@@ -245,7 +245,7 @@ onUnmounted(() => {
                   </div>
                   <div class="rounded-2xl p-4 ring-1 ring-white/20 text-white bg-white/10 backdrop-blur-md shadow-md hover:bg-white/15 transition-colors">
                     <div class="flex items-center justify-between">
-                      <div class="text-xs">Kelembaban</div>
+                      <div class="text-xs">Humidity</div>
                       <Droplets class="w-4 h-4" />
                     </div>
                     <div class="mt-2 text-3xl font-bold" :class="latestReading ? '' : 'text-white/70'">
@@ -253,14 +253,14 @@ onUnmounted(() => {
                     </div>
                   </div>
                 </div>
-                <div class="mt-3 text-xs text-white/80">Terakhir diperbarui: {{ lastUpdate }}</div>
+                <div class="mt-3 text-xs text-white/80">{{ lastUpdate }}</div>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <div class="flex overflow-x-auto snap-x snap-mandatory gap-3 pb-1">
-          <Card class="min-w-[80%] snap-start rounded-2xl text-white bg-gradient-to-r from-[#141E30] to-[#35577D] ring-1 ring-white/10 shadow-md">
+          <Card class="min-w-full snap-start rounded-2xl text-white bg-gradient-to-r from-[#141E30] to-[#35577D] ring-1 ring-white/10 shadow-md">
             <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle class="text-sm font-medium">Avg Temperature</CardTitle>
               <Thermometer class="h-4 w-4 text-red-500" />
@@ -271,7 +271,7 @@ onUnmounted(() => {
             </CardContent>
           </Card>
 
-          <Card class="min-w-[80%] snap-start rounded-2xl text-white bg-gradient-to-r from-[#35577D] to-[#141E30] ring-1 ring-white/10 shadow-md">
+          <Card class="min-w-full snap-start rounded-2xl text-white bg-gradient-to-r from-[#35577D] to-[#141E30] ring-1 ring-white/10 shadow-md">
             <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle class="text-sm font-medium">Avg Humidity</CardTitle>
               <Droplets class="h-4 w-4 text-blue-500" />
@@ -282,7 +282,7 @@ onUnmounted(() => {
             </CardContent>
           </Card>
 
-          <Card class="min-w-[80%] snap-start rounded-2xl text-white bg-gradient-to-r from-[#141E30] to-[#35577D] ring-1 ring-white/10 shadow-md">
+          <Card class="min-w-full snap-start rounded-2xl text-white bg-gradient-to-r from-[#141E30] to-[#35577D] ring-1 ring-white/10 shadow-md">
             <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle class="text-sm font-medium">Total Readings</CardTitle>
               <Activity class="h-4 w-4 text-teal-500" />
@@ -293,7 +293,7 @@ onUnmounted(() => {
             </CardContent>
           </Card>
 
-          <Card class="min-w-[80%] snap-start rounded-2xl text-white bg-gradient-to-r from-[#35577D] to-[#141E30] ring-1 ring-white/10 shadow-md">
+          <Card class="min-w-full snap-start rounded-2xl text-white bg-gradient-to-r from-[#35577D] to-[#141E30] ring-1 ring-white/10 shadow-md">
             <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle class="text-sm font-medium">Online Devices</CardTitle>
               <Wifi class="h-4 w-4 text-green-500" />
