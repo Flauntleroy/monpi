@@ -6,6 +6,7 @@ import FloatingThemeToggle from '@/components/FloatingThemeToggle.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import RealtimeLineChart from '@/components/charts/RealtimeLineChart.vue';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { 
   Activity,
   Thermometer,
@@ -72,6 +73,20 @@ const refreshIntervalMs = ref(5000);
 const isPaused = ref(false);
 const showTemperatureOnly = ref(false);
 let intervalId: number | null = null;
+
+// Modal untuk 10 data terbaru berdasarkan klik card
+const latestModalOpen = ref(false);
+const latestModalType = ref<'temperature' | 'humidity' | null>(null);
+const latest10 = computed(() => {
+  const list = filteredReadings.value.slice().sort((a, b) => {
+    return new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime();
+  }).slice(0, 10);
+  return list;
+});
+const openLatest = (type: 'temperature' | 'humidity') => {
+  latestModalType.value = type;
+  latestModalOpen.value = true;
+};
 
 const onlineDevices = computed(() => monitoringData.value?.devices.filter(d => d.status === 'online').length || 0);
 const warningDevices = computed(() => monitoringData.value?.devices.filter(d => d.status === 'warning').length || 0);
@@ -234,7 +249,7 @@ onUnmounted(() => {
                   </Button>
                 </div>
                 <div class="mt-4 grid grid-cols-2 gap-4">
-                  <div class="rounded-2xl p-4 ring-1 ring-white/20 text-white bg-white/10 backdrop-blur-md shadow-md hover:bg-white/15 transition-colors">
+                  <div @click="openLatest('temperature')" class="rounded-2xl p-4 ring-1 ring-white/20 text-white bg-white/10 backdrop-blur-md shadow-md hover:bg-white/15 transition-colors">
                     <div class="flex items-center justify-between">
                       <div class="text-xs">Temperature</div>
                       <Thermometer class="w-4 h-4" />
@@ -243,7 +258,7 @@ onUnmounted(() => {
                       {{ latestReading ? latestReading.temperature_c.toFixed(1) : '--' }}°C
                     </div>
                   </div>
-                  <div class="rounded-2xl p-4 ring-1 ring-white/20 text-white bg-white/10 backdrop-blur-md shadow-md hover:bg-white/15 transition-colors">
+                  <div @click="openLatest('humidity')" class="rounded-2xl p-4 ring-1 ring-white/20 text-white bg-white/10 backdrop-blur-md shadow-md hover:bg-white/15 transition-colors">
                     <div class="flex items-center justify-between">
                       <div class="text-xs">Humidity</div>
                       <Droplets class="w-4 h-4" />
@@ -307,7 +322,7 @@ onUnmounted(() => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Sensor Readings</CardTitle>
+            <CardTitle>Sensor Chart</CardTitle>
           </CardHeader>
           <CardContent>
             <div class="flex flex-wrap items-center gap-3 mb-3">
@@ -320,9 +335,9 @@ onUnmounted(() => {
                 <option :value="60000">60s</option>
               </select>
               <Button @click="isPaused = !isPaused" size="sm" variant="outline">{{ isPaused ? 'Resume' : 'Pause' }}</Button>
-              <label class="text-sm text-gray-600 dark:text-gray-300">Max Points</label>
-              <input type="number" v-model.number="maxPoints" min="10" max="200" class="w-20 px-2 py-1 border rounded text-sm" />
-              <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-1"><input type="checkbox" v-model="showTemperatureOnly" />Suhu saja</label>
+              <!-- <label class="text-sm text-gray-600 dark:text-gray-300">Max Points</label> -->
+              <!-- <input type="number" v-model.number="maxPoints" min="10" max="200" class="w-20 px-2 py-1 border rounded text-sm" /> -->
+              <!-- <label class="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-1"><input type="checkbox" v-model="showTemperatureOnly" />Suhu saja</label> -->
             </div>
             <RealtimeLineChart :labels="chartLabels" :datasets="displayDatasets" :dark="isDarkChart" />
           </CardContent>
@@ -330,26 +345,26 @@ onUnmounted(() => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Data Terbaru</CardTitle>
-            <CardDescription>{{ filteredReadings.length }} data terakhir <span v-if="selectedDevice">dari {{ deviceDisplayName(selectedDevice) }}</span></CardDescription>
+            <CardTitle>Last Update</CardTitle>
+            <!-- <CardDescription>{{ filteredReadings.length }} data terakhir <span v-if="selectedDevice">dari {{ deviceDisplayName(selectedDevice) }}</span></CardDescription> -->
           </CardHeader>
           <CardContent>
             <div class="overflow-x-auto">
               <table class="min-w-full text-sm">
                 <thead>
                   <tr class="text-left border-b">
-                    <th class="px-2 py-2">Waktu</th>
                     <th class="px-2 py-2">Device</th>
-                    <th class="px-2 py-2">Suhu (°C)</th>
-                    <th class="px-2 py-2">Kelembaban (%)</th>
+                    <th class="px-2 py-2">Temperature (°C)</th>
+                    <th class="px-2 py-2">Humidity (%)</th>
+                    <th class="px-2 py-2">Time</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="reading in filteredReadings.slice(0, 100)" :key="`${reading.device_id}-${reading.recorded_at}`" class="border-b">
-                    <td class="px-2 py-2">{{ new Date(reading.recorded_at).toLocaleString() }}</td>
                     <td class="px-2 py-2">{{ deviceDisplayName(reading.device_id) }}</td>
                     <td class="px-2 py-2"><span :class="getTempColor(reading.temperature_c)">{{ reading.temperature_c.toFixed(1) }}</span></td>
                     <td class="px-2 py-2"><span :class="getHumidityColor(reading.humidity)">{{ reading.humidity.toFixed(1) }}</span></td>
+                    <td class="px-2 py-2">{{ new Date(reading.recorded_at).toLocaleString() }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -360,6 +375,32 @@ onUnmounted(() => {
       </div>
 
       <FloatingThemeToggle />
+      <!-- Modal: 10 Data Terbaru -->
+      <Dialog :open="latestModalOpen" @update:open="(v: boolean) => latestModalOpen = v">
+        <DialogContent class="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {{ latestModalType === 'temperature' ? 'Temperature' : latestModalType === 'humidity' ? 'Humidity' : '' }}
+            </DialogTitle>
+          </DialogHeader>
+          <div class="space-y-2 max-h-[60vh] overflow-y-auto">
+            <div v-for="r in latest10" :key="`${r.device_id}-${r.recorded_at}`" class="flex items-center justify-between border-b py-2">
+              <div class="text-xs">{{ deviceDisplayName(r.device_id) }}</div>
+              <div v-if="latestModalType === 'temperature'" :class="getTempColor(r.temperature_c)" class="text-sm font-semibold">
+                {{ r.temperature_c.toFixed(1) }}°C
+              </div>
+              <div v-else :class="getHumidityColor(r.humidity)" class="text-sm font-semibold">
+                {{ r.humidity.toFixed(1) }}%
+              </div>
+              <div class="text-xs">{{ new Date(r.recorded_at).toLocaleString() }}</div>
+            </div>
+            <div v-if="latest10.length === 0" class="text-center py-6 text-gray-500">Tidak ada data</div>
+          </div>
+          <DialogFooter>
+            <Button size="sm" variant="outline" @click="latestModalOpen = false">Tutup</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   </AppHeaderLayout>
 </template>
