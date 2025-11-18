@@ -8,7 +8,6 @@ header('Cache-Control: no-store, no-cache, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
 
-// Simulasi data dari tabel sensors
 $mockData = [
     'summary' => [
         'total_readings' => 100,
@@ -53,7 +52,6 @@ $mockData = [
     'timestamp' => date('c'),
 ];
 
-// Generate dummy readings untuk testing (100 data terakhir, interval 5 detik)
 for ($i = 0; $i < 100; $i++) {
     $timestamp = time() - ($i * 5);
     $mockData['recent_readings'][] = [

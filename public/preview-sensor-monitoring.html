@@ -6,10 +6,9 @@
     <title>Preview Sensor Monitoring</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Fetch data dari mock API
         async function loadSensorData() {
             try {
-                const response = await fetch('/api/sensor-monitoring/data.php');
+                const response = await fetch('/sensor-monitoring/data');
                 const data = await response.json();
                 displayData(data);
             } catch (error) {

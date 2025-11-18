@@ -68,7 +68,7 @@ class SensorMonitoringController extends Controller
                         'humidity' => $latest->humidity,
                         'recorded_at' => $latest->recorded_at->toIso8601String(),
                         'status' => $this->getDeviceStatus($latest->recorded_at),
-                        'last_seen_minutes' => now()->diffInMinutes($latest->recorded_at),
+                        'last_seen_minutes' => (int) round($latest->recorded_at->diffInMinutes(now())),
                     ];
                 }
             }
@@ -116,14 +116,13 @@ class SensorMonitoringController extends Controller
      */
     private function getDeviceStatus($lastSeen)
     {
-        $minutesAgo = now()->diffInMinutes($lastSeen);
-        
-        if ($minutesAgo <= 5) {
+        $secondsAgo = $lastSeen->diffInSeconds(now());
+        if ($secondsAgo <= 60) {
             return 'online';
-        } elseif ($minutesAgo <= 15) {
-            return 'warning';
-        } else {
-            return 'offline';
         }
+        if ($secondsAgo <= 300) {
+            return 'warning';
+        }
+        return 'offline';
     }
 }

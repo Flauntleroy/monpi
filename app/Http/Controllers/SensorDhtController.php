@@ -33,7 +33,6 @@ class SensorDhtController extends Controller
                 $data = $decoded;
             }
         }
-        // Allow aliases
         if (!isset($data['temperature_c']) && isset($data['temperature'])) {
             $data['temperature_c'] = $data['temperature'];
         }
@@ -57,7 +56,6 @@ class SensorDhtController extends Controller
 
         $reading = SensorReading::create($payload);
 
-        // Check thresholds and send alert if needed
         $thresholds = Config::get('sensors.thresholds');
         $waConfig = Config::get('sensors.whatsapp');
         $alerts = [];
@@ -102,9 +100,6 @@ class SensorDhtController extends Controller
         ], 201);
     }
 
-    /**
-     * Return recent readings for monitoring dashboard
-     */
     public function recent(Request $request)
     {
         $deviceId = $request->query('device_id');
@@ -153,11 +148,11 @@ class SensorDhtController extends Controller
         }
 
         $payload = $validator->validated();
-        $message = "⚠️ ALERT SUHU SERVER ROOM\n";
+        $message = "Server panas bung\n";
         $message .= "Device: {$payload['device_id']}\n";
         $message .= "Suhu: " . number_format((float) $payload['temperature_c'], 2) . "°C\n";
         $message .= "Kelembaban: " . number_format((float) $payload['humidity'], 2) . "%\n";
-        $message .= "Waktu: " . now()->format('Y-m-d H:i:s');
+        $message .= now()->format('Y-m-d H:i:s');
 
         $cooldown = 5;
         $recipient = env('FONNTE_TARGET');
