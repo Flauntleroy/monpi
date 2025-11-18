@@ -53,6 +53,7 @@ class SensorDhtController extends Controller
 
         $payload = $validator->validated();
         $payload['recorded_at'] = $payload['recorded_at'] ?? now();
+        $payload['device_id'] = 'Servo DHT22';
 
         $reading = SensorReading::create($payload);
 

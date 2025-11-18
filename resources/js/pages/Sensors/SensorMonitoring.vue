@@ -170,7 +170,7 @@ const getHumidityBadgeClass = (humidity: number) => {
 };
 
 const deviceDisplayName = (id: string) => {
-  return 'Servo DHT22';
+  return id || 'Unknown Device';
 };
 
 const updateIsDarkChart = () => {

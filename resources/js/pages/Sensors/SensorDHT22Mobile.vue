@@ -105,7 +105,25 @@ const displayDatasets = computed(() => showTemperatureOnly.value ? chartDatasets
 const filteredDevices = computed(() => !selectedDevice.value ? (monitoringData.value?.devices || []) : (monitoringData.value?.devices.filter(d => d.device_id === selectedDevice.value) || []));
 const filteredReadings = computed(() => !selectedDevice.value ? (monitoringData.value?.recent_readings || []) : (monitoringData.value?.recent_readings.filter(r => r.device_id === selectedDevice.value) || []));
 const latestReading = computed(() => monitoringData.value?.recent_readings?.[0] || null);
-const currentDeviceStatus = computed(() => filteredDevices.value[0] || monitoringData.value?.devices?.[0] || null);
+const currentDeviceStatus = computed(() => {
+  const list = filteredDevices.value.length ? filteredDevices.value : (monitoringData.value?.devices || []);
+  if (!list.length) return null;
+  const online = list.filter(d => d.status === 'online').sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
+  if (online.length) return online[0];
+  const warning = list.filter(d => d.status === 'warning').sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
+  if (warning.length) return warning[0];
+  return [...list].sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime())[0];
+});
+
+const headerStatus = computed(() => {
+  const cd = currentDeviceStatus.value as any;
+  const lr = latestReading.value as any;
+  if (cd && lr && cd.device_id === lr.device_id) {
+    const diffSec = Math.floor((Date.now() - new Date(lr.recorded_at).getTime()) / 1000);
+    if (diffSec <= 15) return 'online';
+  }
+  return (cd?.status ?? 'offline') as 'online' | 'warning' | 'offline';
+});
 
 const getStatusColor = (status: string) => {
   if (status === 'online') return 'bg-green-500';
@@ -126,7 +144,13 @@ const getHumidityColor = (humidity: number) => {
   return 'text-green-600';
 };
 
-const deviceDisplayName = (id: string) => (id ? 'Servo DHT22' : 'Servo DHT22');
+const deviceDisplayName = (id: string) => id || 'Unknown Device';
+
+const formatLastSeen = (minutes: number) => {
+  if (minutes < 1) return 'Baru saja';
+  if (minutes < 60) return `${minutes} menit lalu`;
+  return `${Math.floor(minutes / 60)} jam lalu`;
+};
 
 const updateIsDarkChart = () => {
   if (typeof document !== 'undefined') {
@@ -279,10 +303,11 @@ onUnmounted(() => {
               <div class="p-5 relative">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-3">
-                    <div :class="[ 'status-pulse', (currentDeviceStatus?.status === 'online' ? 'text-green-500' : currentDeviceStatus?.status === 'warning' ? 'text-yellow-500' : 'text-red-500') ]">
-                      <div :class="getStatusColor(currentDeviceStatus?.status || 'offline')" class="w-2.5 h-2.5 rounded-full"></div>
+                    <div :class="[ 'status-pulse', (headerStatus === 'online' ? 'text-green-500' : headerStatus === 'warning' ? 'text-yellow-500' : 'text-red-500') ]">
+                      <div :class="getStatusColor(headerStatus)" class="w-2.5 h-2.5 rounded-full"></div>
                     </div>
                     <div class="text-sm font-semibold text-white">{{ deviceDisplayName(currentDeviceStatus?.device_id || '') }}</div>
+                    <div class="text-[11px] text-white/80 ml-2">{{ currentDeviceStatus ? formatLastSeen(currentDeviceStatus.last_seen_minutes) : '' }}</div>
                   </div>
                   <Button @click="fetchMonitoringData" :disabled="isLoading" variant="outline" size="sm" class="bg-white/10 border-white/20 text-white hover:bg-white/20">
                     <RefreshCw :class="{ 'animate-spin': isLoading }" class="w-4 h-4 mr-2" />
