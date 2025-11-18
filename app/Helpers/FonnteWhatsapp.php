@@ -20,7 +20,7 @@ class FonnteWhatsapp
             }
 
             $phone = $phone ?: env('FONNTE_TARGET', '6281256180502');
-            $cacheKey = 'sensor_alert_' . md5(($phone ?: '') . '_' . $message);
+            $cacheKey = 'sensor_alert_' . md5(($phone ?: '') . '_dht_sensor');
 
             if (Cache::has($cacheKey)) {
                 Log::info('WhatsApp sensor alert skipped (cooldown active)', [

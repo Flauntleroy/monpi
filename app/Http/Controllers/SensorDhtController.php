@@ -25,7 +25,14 @@ class SensorDhtController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $data = $request->all();
+        $data = $request->json()->all() ?: $request->all();
+        if (empty($data)) {
+            $raw = $request->getContent();
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $data = $decoded;
+            }
+        }
         // Allow aliases
         if (!isset($data['temperature_c']) && isset($data['temperature'])) {
             $data['temperature_c'] = $data['temperature'];
@@ -69,11 +76,11 @@ class SensorDhtController extends Controller
         }
 
         if (!empty($alerts) && ($waConfig['enabled'] ?? true)) {
-            $message = "⚠️ Sensor Alert (DHT22)\n";
+            $message = "Server panas bung\n";
             $message .= "Device: {$reading->device_id}\n";
             $message .= "Suhu: " . number_format($reading->temperature_c, 2) . "°C\n";
             $message .= "Kelembaban: " . number_format($reading->humidity, 2) . "%\n";
-            $message .= "Waktu: " . $reading->recorded_at->format('Y-m-d H:i:s') . "\n\n";
+            $message .= $reading->recorded_at->format('Y-m-d H:i:s') . "\n\n";
             $message .= implode("\n", $alerts);
 
             FonnteWhatsapp::sendSensorAlert(
@@ -110,5 +117,52 @@ class SensorDhtController extends Controller
 
         $rows = $query->limit($limit)->get(['device_id', 'temperature_c', 'humidity', 'recorded_at']);
         return response()->json(['data' => $rows]);
+    }
+
+    public function alert(Request $request)
+    {
+        $apiKey = Config::get('sensors.api_key');
+        $providedKey = $request->header('X-API-KEY') ?: $request->query('key');
+        if ($apiKey && $providedKey !== $apiKey) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $data = $request->json()->all() ?: $request->all();
+        if (empty($data)) {
+            $raw = $request->getContent();
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $data = $decoded;
+            }
+        }
+        if (!isset($data['temperature_c']) && isset($data['temperature'])) {
+            $data['temperature_c'] = $data['temperature'];
+        }
+
+        $validator = Validator::make($data, [
+            'device_id' => 'required|string|max:64',
+            'temperature_c' => 'required|numeric',
+            'humidity' => 'required|numeric',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation error',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $payload = $validator->validated();
+        $message = "⚠️ ALERT SUHU SERVER ROOM\n";
+        $message .= "Device: {$payload['device_id']}\n";
+        $message .= "Suhu: " . number_format((float) $payload['temperature_c'], 2) . "°C\n";
+        $message .= "Kelembaban: " . number_format((float) $payload['humidity'], 2) . "%\n";
+        $message .= "Waktu: " . now()->format('Y-m-d H:i:s');
+
+        $cooldown = 5;
+        $recipient = env('FONNTE_TARGET');
+        $result = FonnteWhatsapp::sendSensorAlert($message, $cooldown, $recipient);
+
+        return response()->json(['status' => 'alert_sent', 'result' => $result]);
     }
 }
