@@ -140,6 +140,7 @@ Route::get('/sensor-monitoring', function () {
 
 // Sensor Monitoring API
 Route::get('/sensor-monitoring/data', [SensorMonitoringController::class, 'index']);
+Route::get('/sensor/report', [SensorMonitoringController::class, 'report']);
 
 // DHT22 Mobile View
 Route::get('/sensor', function () {

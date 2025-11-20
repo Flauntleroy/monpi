@@ -125,4 +125,102 @@ class SensorMonitoringController extends Controller
         }
         return 'offline';
     }
+
+    /**
+     * Generate monthly sensor report
+     */
+    public function report(Request $request)
+    {
+        try {
+            $month = $request->query('month', now()->month);
+            $year = $request->query('year', now()->year);
+            $deviceId = $request->query('device_id');
+
+            $startDate = \Carbon\Carbon::createFromDate($year, $month, 1)->startOfDay();
+            $endDate = $startDate->copy()->endOfMonth()->endOfDay();
+
+            $query = SensorReading::query()
+                ->from('sensors')
+                ->whereBetween('recorded_at', [$startDate, $endDate]);
+
+            if ($deviceId) {
+                $query->where('device_id', $deviceId);
+            }
+
+            $readings = $query->orderBy('recorded_at')->get();
+            
+            // Group by date
+            $grouped = $readings->groupBy(function ($item) {
+                return $item->recorded_at->format('Y-m-d');
+            });
+
+            $report = [];
+            $currentDate = $startDate->copy();
+
+            while ($currentDate <= $endDate) {
+                $dateStr = $currentDate->format('Y-m-d');
+                $dayReadings = $grouped->get($dateStr, collect());
+
+                $dailyData = [
+                    'date' => $dateStr,
+                    'avg_temperature' => $dayReadings->isNotEmpty() ? round($dayReadings->avg('temperature_c'), 2) : null,
+                    'avg_humidity' => $dayReadings->isNotEmpty() ? round($dayReadings->avg('humidity'), 2) : null,
+                    'readings_count' => $dayReadings->count(),
+                    'morning_reading' => null,
+                    'evening_reading' => null,
+                ];
+
+                if ($dayReadings->isNotEmpty()) {
+                    // Find reading closest to 8:00 AM
+                    $morningTarget = $currentDate->copy()->setTime(8, 0, 0);
+                    $morningReading = $dayReadings->sortBy(function ($reading) use ($morningTarget) {
+                        return abs($reading->recorded_at->diffInSeconds($morningTarget));
+                    })->first();
+
+                    // Only include if within reasonable range (e.g., +/- 1 hour) - optional, but good for accuracy
+                    // For now, just taking the closest one as requested
+                    if ($morningReading) {
+                        $dailyData['morning_reading'] = [
+                            'time' => $morningReading->recorded_at->format('H:i:s'),
+                            'temperature_c' => $morningReading->temperature_c,
+                            'humidity' => $morningReading->humidity,
+                        ];
+                    }
+
+                    // Find reading closest to 6:00 PM (18:00)
+                    $eveningTarget = $currentDate->copy()->setTime(18, 0, 0);
+                    $eveningReading = $dayReadings->sortBy(function ($reading) use ($eveningTarget) {
+                        return abs($reading->recorded_at->diffInSeconds($eveningTarget));
+                    })->first();
+
+                    if ($eveningReading) {
+                        $dailyData['evening_reading'] = [
+                            'time' => $eveningReading->recorded_at->format('H:i:s'),
+                            'temperature_c' => $eveningReading->temperature_c,
+                            'humidity' => $eveningReading->humidity,
+                        ];
+                    }
+                }
+
+                $report[] = $dailyData;
+                $currentDate->addDay();
+            }
+
+            return response()->json([
+                'meta' => [
+                    'month' => $month,
+                    'year' => $year,
+                    'device_id' => $deviceId,
+                ],
+                'data' => $report
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Sensor report error: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to generate report',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
