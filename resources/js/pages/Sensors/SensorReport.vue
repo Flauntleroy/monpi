@@ -22,6 +22,7 @@ import {
   Moon,
   Home
 } from 'lucide-vue-next';
+import Chart from 'chart.js/auto';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -208,7 +209,7 @@ const openRecordDetail = (type: string, record: RecordDetail) => {
 const downloadCSV = () => {
   if (!reportData.value) return;
   
-  const headers = ['Tanggal', 'Rata-rata Suhu (°C)', 'Rata-rata Kelembaban (%)', 'Jumlah Data', 'Suhu Pagi (08:00)', 'Kelembaban Pagi', 'Waktu Pagi', 'Suhu Sore (18:00)', 'Kelembaban Sore', 'Waktu Sore'];
+  const headers = ['Tanggal', 'Rata-rata Suhu (°C)', 'Rata-rata Kelembaban (%)', 'Jumlah Data', 'Suhu Pagi 08:00', 'Kelembaban Pagi', 'Waktu Pagi', 'Suhu Sore 16:00', 'Kelembaban Sore', 'Waktu'];
   const rows = reportData.value.data.map(d => [
     d.date,
     d.avg_temperature?.toFixed(2) || '-',
@@ -235,7 +236,7 @@ const downloadCSV = () => {
 const downloadXLSX = () => {
   if (!reportData.value) return;
 
-  const headers = ['Tanggal', 'Rata-rata Suhu (°C)', 'Rata-rata Kelembaban (%)', 'Jumlah Data', 'Suhu Pagi (08:00)', 'Kelembaban Pagi', 'Waktu Pagi', 'Suhu Sore (18:00)', 'Kelembaban Sore', 'Waktu Sore'];
+  const headers = ['Tanggal', 'Rata-rata Suhu (°C)', 'Rata-rata Kelembaban (%)', 'Jumlah Data', 'Suhu Pagi 08:00', 'Kelembaban Pagi', 'Waktu Pagi', 'Suhu Sore 16:00', 'Kelembaban Sore', 'Waktu Sore'];
   const rows = reportData.value.data.map(d => [
     d.date,
     d.avg_temperature?.toFixed(2) || '-',
@@ -256,16 +257,154 @@ const downloadXLSX = () => {
   XLSX.writeFile(wb, `sensor-report-${selectedYear.value}-${month}.xlsx`);
 };
 
-const downloadPDF = () => {
+// Generate chart image (line chart: avg temperature & humidity per day)
+const generateReportChartImage = async (): Promise<string | null> => {
+  if (!reportData.value) return null;
+  const canvas = document.createElement('canvas');
+  // Set fixed size for high-quality image
+  canvas.width = 1000;
+  canvas.height = 400;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const labels = reportData.value.data.map(d => {
+    const date = new Date(d.date);
+    return `${String(date.getDate()).padStart(2, '0')}`;
+  });
+  const temps = reportData.value.data.map(d => d.avg_temperature ?? null);
+  const humids = reportData.value.data.map(d => d.avg_humidity ?? null);
+
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Avg Temperature (°C)',
+          data: temps,
+          borderColor: 'rgba(239, 68, 68, 0.9)',
+          backgroundColor: 'rgba(239, 68, 68, 0.2)',
+          tension: 0.3,
+          fill: true,
+          spanGaps: true,
+        },
+        {
+          label: 'Avg Humidity (%)',
+          data: humids,
+          borderColor: 'rgba(59, 130, 246, 0.9)',
+          backgroundColor: 'rgba(59, 130, 246, 0.2)',
+          tension: 0.3,
+          fill: true,
+          spanGaps: true,
+        },
+      ],
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'top' },
+        title: { display: false },
+      },
+      scales: {
+        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+
+  // Allow the chart to render
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const dataUrl = canvas.toDataURL('image/png');
+  chart.destroy();
+  return dataUrl;
+};
+
+// Compute overall averages for temperature and humidity
+const computeOverallStats = () => {
+  if (!reportData.value) return { avgTemp: 0, avgHumidity: 0, totalDays: 0 };
+  let tempSum = 0;
+  let tempCount = 0;
+  let humidSum = 0;
+  let humidCount = 0;
+  reportData.value.data.forEach(d => {
+    if (typeof d.avg_temperature === 'number') {
+      tempSum += d.avg_temperature;
+      tempCount += 1;
+    }
+    if (typeof d.avg_humidity === 'number') {
+      humidSum += d.avg_humidity;
+      humidCount += 1;
+    }
+  });
+  return {
+    avgTemp: tempCount ? tempSum / tempCount : 0,
+    avgHumidity: humidCount ? humidSum / humidCount : 0,
+    totalDays: reportData.value.data.length,
+  };
+};
+
+const downloadPDF = async () => {
   if (!reportData.value) return;
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const month = String(selectedMonth.value).padStart(2, '0');
-  const title = `Sensor Report ${selectedYear.value}-${month}`;
-  doc.setFontSize(14);
-  doc.text(title, 40, 40);
+  const title = 'Laporan Harian Data Suhu dan Kelembaban Unit IT.';
 
-  const headers = [['Tanggal', 'Avg Suhu (°C)', 'Avg Kelembaban (%)', 'Jumlah', 'Pagi (08:00)', 'Sore (18:00)']];
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 40;
+
+  // Header background
+  const headerHeight = 70;
+  doc.setFillColor(40, 110, 180);
+  doc.rect(0, 0, pageWidth, headerHeight, 'F');
+
+  // Header text
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.text(title, margin, 28);
+  doc.setFontSize(11);
+  const subtitle = selectedDevice.value ? `Device: ${selectedDevice.value}` : '${selectedYear.value}-${month}';
+  doc.text(subtitle, margin, 48);
+
+  // Summary stats boxes
+  doc.setTextColor(0, 0, 0);
+  const statsY = headerHeight + 20;
+  const boxWidth = (pageWidth - margin * 2 - 20) / 2;
+  const boxHeight = 60;
+  const stats = computeOverallStats();
+
+  // Box 1 - Temperature
+  doc.setFillColor(240, 248, 255);
+  doc.roundedRect(margin, statsY, boxWidth, boxHeight, 8, 8, 'F');
+  doc.setFontSize(11);
+  doc.text('Average Temperature', margin + 12, statsY + 22);
+  doc.setFontSize(16);
+  doc.setTextColor(239, 68, 68);
+  doc.text(`${stats.avgTemp.toFixed(2)}°C`, margin + 12, statsY + 44);
+  doc.setTextColor(0, 0, 0);
+
+  // Box 2 - Humidity
+  const box2X = margin + boxWidth + 20;
+  doc.setFillColor(240, 248, 255);
+  doc.roundedRect(box2X, statsY, boxWidth, boxHeight, 8, 8, 'F');
+  doc.setFontSize(11);
+  doc.text('Average Humidity', box2X + 12, statsY + 22);
+  doc.setFontSize(16);
+  doc.setTextColor(59, 130, 246);
+  doc.text(`${stats.avgHumidity.toFixed(2)}%`, box2X + 12, statsY + 44);
+  doc.setTextColor(0, 0, 0);
+
+  // Chart image
+  const chartY = statsY + boxHeight + 20;
+  const chartImg = await generateReportChartImage();
+  const chartHeight = 200;
+  if (chartImg) {
+    doc.addImage(chartImg, 'PNG', margin, chartY, pageWidth - margin * 2, chartHeight);
+  }
+
+  // Table data
+  const headers = [['Tanggal', 'Avg Suhu (°C)', 'Avg Kelembaban (%)', 'Jumlah', 'Pagi 08:00', 'Sore 16:00']];
   const body = reportData.value.data.map(d => [
     d.date,
     d.avg_temperature?.toFixed(2) || '-',
@@ -278,9 +417,9 @@ const downloadPDF = () => {
   autoTable(doc, {
     head: headers,
     body,
-    startY: 60,
+    startY: chartY + chartHeight + 20,
     styles: { fontSize: 9, cellPadding: 4 },
-    headStyles: { fillColor: [66, 139, 202] },
+    headStyles: { fillColor: [40, 110, 180], textColor: 255 },
     theme: 'striped',
   });
 
@@ -357,8 +496,8 @@ onUnmounted(() => {
       <!-- Header -->
       <div class="mb-2 flex items-center justify-between">
         <div>
-          <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Sensor Report</h1>
-          <p class="text-gray-600 dark:text-gray-400 mt-1">Laporan harian suhu dan kelembaban sensor</p>
+          <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Report </h1>
+          <!-- <p class="text-gray-600 dark:text-gray-400 mt-1">Laporan harian suhu dan kelembaban sensor</p> -->
         </div>
         <!-- Actions Dropdown -->
         <DropdownMenu>
@@ -393,15 +532,6 @@ onUnmounted(() => {
                   />
                 </button>
               </div>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem @click="downloadXLSX">
-              <Download class="w-4 h-4 mr-2" />
-              Download XLSX
-            </DropdownMenuItem>
-            <DropdownMenuItem @click="downloadPDF">
-              <Download class="w-4 h-4 mr-2" />
-              Download PDF
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem :as-child="true">
@@ -444,7 +574,7 @@ onUnmounted(() => {
               <CardHeader class="pb-3 pt-4">
                 <CardTitle class="text-base flex items-center gap-2">
                   <TrendingUp class="w-4 h-4" />
-                  Filter
+                  Periode
                 </CardTitle>
               </CardHeader>
               <CardContent class="space-y-3">
@@ -482,16 +612,29 @@ onUnmounted(() => {
                     {{ isLoading ? 'Loading...' : 'Tampilkan' }}
                   </Button>
                   
-                  <Button 
-                    @click="downloadCSV" 
-                    :disabled="!reportData || isLoading"
-                    variant="outline"
-                    size="icon"
-                    class="h-9 w-9"
-                    title="Download CSV"
-                  >
-                    <Download class="w-4 h-4" />
-                  </Button>
+                  <!-- Download button with format choices -->
+                  <DropdownMenu>
+                    <DropdownMenuTrigger as-child>
+                      <Button 
+                        :disabled="!reportData || isLoading"
+                        variant="outline"
+                        class="h-9 px-3 text-sm"
+                        title="Download"
+                      >
+                        <Download class="w-4 h-4 mr-2" />Export
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" class="w-40">
+                      <DropdownMenuItem @click="downloadPDF">
+                        <Download class="w-4 h-4 mr-2" />
+                        PDF
+                      </DropdownMenuItem>
+                      <DropdownMenuItem @click="downloadXLSX">
+                        <Download class="w-4 h-4 mr-2" />
+                        XLSX
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardContent>
             </Card>
@@ -512,7 +655,7 @@ onUnmounted(() => {
                         <span>Max Temperature</span>
                       </div>
                       <div class="text-xl font-bold text-red-500">{{ overallStats.maxTemp.toFixed(1) }}°C</div>
-                      <div class="text-[8px] text-gray-500 dark:text-gray-400 mt-0.5">Klik untuk detail</div>
+                      <!-- <div class="text-[8px] text-gray-500 dark:text-gray-400 mt-0.5">Detail</div> -->
                     </CardContent>
                   </Card>
 
@@ -527,7 +670,7 @@ onUnmounted(() => {
                         <span>Min Temperature</span>
                       </div>
                       <div class="text-xl font-bold text-blue-500">{{ overallStats.minTemp.toFixed(1) }}°C</div>
-                      <div class="text-[8px] text-gray-500 dark:text-gray-400 mt-0.5">Klik untuk detail</div>
+                      <!-- <div class="text-[8px] text-gray-500 dark:text-gray-400 mt-0.5">Detail</div> -->
                     </CardContent>
                   </Card>
                   <!-- Rata-rata Suhu -->
@@ -665,7 +808,7 @@ onUnmounted(() => {
             <Card>
               <CardHeader class="pb-3 pt-4">
                 <CardTitle class="text-lg">{{ monthNames[selectedMonth - 1] }} {{ selectedYear }}</CardTitle>
-                <CardDescription class="text-xs">Klik tanggal untuk detail</CardDescription>
+                <!-- <CardDescription class="text-xs">Klik tanggal untuk detail</CardDescription> -->
               </CardHeader>
               <CardContent class="pt-0">
                 <!-- Calendar Grid - More Compact -->
