@@ -142,6 +142,11 @@ Route::get('/sensor-monitoring', function () {
 Route::get('/sensor-monitoring/data', [SensorMonitoringController::class, 'index']);
 Route::get('/sensor/report', [SensorMonitoringController::class, 'report']);
 
+// Sensor Report Page
+Route::get('/sensor-report', function () {
+    return Inertia::render('Sensors/SensorReport');
+})->name('sensor.report');
+
 // DHT22 Mobile View
 Route::get('/sensor', function () {
     return Inertia::render('Sensors/SensorDHT22Mobile');
