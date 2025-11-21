@@ -22,6 +22,9 @@ import {
   Moon,
   Home
 } from 'lucide-vue-next';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface MorningReading {
   time: string;
@@ -229,6 +232,61 @@ const downloadCSV = () => {
   URL.revokeObjectURL(url);
 };
 
+const downloadXLSX = () => {
+  if (!reportData.value) return;
+
+  const headers = ['Tanggal', 'Rata-rata Suhu (°C)', 'Rata-rata Kelembaban (%)', 'Jumlah Data', 'Suhu Pagi (08:00)', 'Kelembaban Pagi', 'Waktu Pagi', 'Suhu Sore (18:00)', 'Kelembaban Sore', 'Waktu Sore'];
+  const rows = reportData.value.data.map(d => [
+    d.date,
+    d.avg_temperature?.toFixed(2) || '-',
+    d.avg_humidity?.toFixed(2) || '-',
+    d.readings_count,
+    d.morning_reading?.temperature_c.toFixed(2) || '-',
+    d.morning_reading?.humidity.toFixed(2) || '-',
+    d.morning_reading?.time || '-',
+    d.evening_reading?.temperature_c.toFixed(2) || '-',
+    d.evening_reading?.humidity.toFixed(2) || '-',
+    d.evening_reading?.time || '-',
+  ]);
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  XLSX.utils.book_append_sheet(wb, ws, 'Sensor Report');
+  const month = String(selectedMonth.value).padStart(2, '0');
+  XLSX.writeFile(wb, `sensor-report-${selectedYear.value}-${month}.xlsx`);
+};
+
+const downloadPDF = () => {
+  if (!reportData.value) return;
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const month = String(selectedMonth.value).padStart(2, '0');
+  const title = `Sensor Report ${selectedYear.value}-${month}`;
+  doc.setFontSize(14);
+  doc.text(title, 40, 40);
+
+  const headers = [['Tanggal', 'Avg Suhu (°C)', 'Avg Kelembaban (%)', 'Jumlah', 'Pagi (08:00)', 'Sore (18:00)']];
+  const body = reportData.value.data.map(d => [
+    d.date,
+    d.avg_temperature?.toFixed(2) || '-',
+    d.avg_humidity?.toFixed(2) || '-',
+    String(d.readings_count),
+    d.morning_reading ? `${d.morning_reading.temperature_c.toFixed(2)}°C / ${d.morning_reading.humidity.toFixed(2)}%` : '-',
+    d.evening_reading ? `${d.evening_reading.temperature_c.toFixed(2)}°C / ${d.evening_reading.humidity.toFixed(2)}%` : '-',
+  ]);
+
+  autoTable(doc, {
+    head: headers,
+    body,
+    startY: 60,
+    styles: { fontSize: 9, cellPadding: 4 },
+    headStyles: { fillColor: [66, 139, 202] },
+    theme: 'striped',
+  });
+
+  doc.save(`sensor-report-${selectedYear.value}-${month}.pdf`);
+};
+
 const overallStats = computed(() => {
   if (!reportData.value) return null;
   
@@ -299,8 +357,8 @@ onUnmounted(() => {
       <!-- Header -->
       <div class="mb-2 flex items-center justify-between">
         <div>
-          <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Report Servo DHT22</h1>
-          <!-- <p class="text-gray-600 dark:text-gray-400 mt-1">Laporan harian suhu dan kelembaban sensor</p> -->
+          <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Sensor Report</h1>
+          <p class="text-gray-600 dark:text-gray-400 mt-1">Laporan harian suhu dan kelembaban sensor</p>
         </div>
         <!-- Actions Dropdown -->
         <DropdownMenu>
@@ -337,10 +395,19 @@ onUnmounted(() => {
               </div>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem @click="downloadXLSX">
+              <Download class="w-4 h-4 mr-2" />
+              Download XLSX
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="downloadPDF">
+              <Download class="w-4 h-4 mr-2" />
+              Download PDF
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem :as-child="true">
               <Link class="block w-full" :href="'/sensor'" as="button">
                 <Home class="w-4 h-4 mr-2" />
-                Ke Sensor (Home)
+                Home
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -377,7 +444,7 @@ onUnmounted(() => {
               <CardHeader class="pb-3 pt-4">
                 <CardTitle class="text-base flex items-center gap-2">
                   <TrendingUp class="w-4 h-4" />
-                  Periode
+                  Filter
                 </CardTitle>
               </CardHeader>
               <CardContent class="space-y-3">
@@ -598,7 +665,7 @@ onUnmounted(() => {
             <Card>
               <CardHeader class="pb-3 pt-4">
                 <CardTitle class="text-lg">{{ monthNames[selectedMonth - 1] }} {{ selectedYear }}</CardTitle>
-                <!-- <CardDescription class="text-xs">Klik tanggal untuk detail</CardDescription> -->
+                <CardDescription class="text-xs">Klik tanggal untuk detail</CardDescription>
               </CardHeader>
               <CardContent class="pt-0">
                 <!-- Calendar Grid - More Compact -->

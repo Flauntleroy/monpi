@@ -390,7 +390,7 @@ onUnmounted(() => {
                         <DropdownMenuItem :as-child="true">
                           <Link class="block w-full" :href="'/sensor-report'" as="button">
                             <TrendingUp class="w-4 h-4 mr-2" />
-                            Ke Report
+                            Report
                           </Link>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
