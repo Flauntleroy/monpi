@@ -188,7 +188,7 @@ class SensorMonitoringController extends Controller
                     }
 
                     // Find reading closest to 6:00 PM (18:00)
-                    $eveningTarget = $currentDate->copy()->setTime(18, 0, 0);
+                    $eveningTarget = $currentDate->copy()->setTime(16, 0, 0);
                     $eveningReading = $dayReadings->sortBy(function ($reading) use ($eveningTarget) {
                         return abs($reading->recorded_at->diffInSeconds($eveningTarget));
                     })->first();
@@ -206,12 +206,58 @@ class SensorMonitoringController extends Controller
                 $currentDate->addDay();
             }
 
+            // Calculate overall statistics from ALL readings (not daily averages)
+            $overallStats = null;
+            if ($readings->isNotEmpty()) {
+                // Find records with max/min values
+                $maxTempReading = $readings->sortByDesc('temperature_c')->first();
+                $minTempReading = $readings->sortBy('temperature_c')->first();
+                $maxHumidityReading = $readings->sortByDesc('humidity')->first();
+                $minHumidityReading = $readings->sortBy('humidity')->first();
+
+                $overallStats = [
+                    'max_temperature' => round($readings->max('temperature_c'), 2),
+                    'min_temperature' => round($readings->min('temperature_c'), 2),
+                    'max_humidity' => round($readings->max('humidity'), 2),
+                    'min_humidity' => round($readings->min('humidity'), 2),
+                    'avg_temperature' => round($readings->avg('temperature_c'), 2),
+                    'avg_humidity' => round($readings->avg('humidity'), 2),
+                    'total_readings' => $readings->count(),
+                    // Include full record details for max/min
+                    'max_temp_record' => [
+                        'temperature_c' => $maxTempReading->temperature_c,
+                        'humidity' => $maxTempReading->humidity,
+                        'recorded_at' => $maxTempReading->recorded_at->toIso8601String(),
+                        'device_id' => $maxTempReading->device_id,
+                    ],
+                    'min_temp_record' => [
+                        'temperature_c' => $minTempReading->temperature_c,
+                        'humidity' => $minTempReading->humidity,
+                        'recorded_at' => $minTempReading->recorded_at->toIso8601String(),
+                        'device_id' => $minTempReading->device_id,
+                    ],
+                    'max_humidity_record' => [
+                        'temperature_c' => $maxHumidityReading->temperature_c,
+                        'humidity' => $maxHumidityReading->humidity,
+                        'recorded_at' => $maxHumidityReading->recorded_at->toIso8601String(),
+                        'device_id' => $maxHumidityReading->device_id,
+                    ],
+                    'min_humidity_record' => [
+                        'temperature_c' => $minHumidityReading->temperature_c,
+                        'humidity' => $minHumidityReading->humidity,
+                        'recorded_at' => $minHumidityReading->recorded_at->toIso8601String(),
+                        'device_id' => $minHumidityReading->device_id,
+                    ],
+                ];
+            }
+
             return response()->json([
                 'meta' => [
                     'month' => $month,
                     'year' => $year,
                     'device_id' => $deviceId,
                 ],
+                'overall_stats' => $overallStats,
                 'data' => $report
             ]);
 
