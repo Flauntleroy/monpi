@@ -135,7 +135,7 @@ const showAddEndpointModal = ref(false);
 const showManageEndpointsModal = ref(false);
 const editingEndpoint = ref<CustomEndpoint | null>(null);
 
-// Form data for new endpoint
+
 const newEndpoint = ref<Partial<CustomEndpoint>>({
   name: '',
   url: '',
@@ -148,7 +148,7 @@ const newEndpoint = ref<Partial<CustomEndpoint>>({
 
 let intervalId: number | null = null;
 
-// LocalStorage functions for historical data
+
 const saveHistoricalData = (data: MonitoringData) => {
   const historical = getHistoricalData();
   const newDataPoint: HistoricalDataPoint = {
@@ -159,7 +159,7 @@ const saveHistoricalData = (data: MonitoringData) => {
   
   historical.push(newDataPoint);
   
-  // Keep only last 24 hours (assuming 30-second intervals = 2880 data points)
+  
   const maxDataPoints = 2880;
   if (historical.length > maxDataPoints) {
     historical.splice(0, historical.length - maxDataPoints);
@@ -182,7 +182,7 @@ const getHistoricalData = (): HistoricalDataPoint[] => {
   return [];
 };
 
-// LocalStorage functions for custom endpoints
+
 const saveCustomEndpoints = () => {
   localStorage.setItem('bpjs_custom_endpoints', JSON.stringify(customEndpoints.value));
 };
@@ -199,7 +199,7 @@ const loadCustomEndpoints = () => {
   }
 };
 
-// Normalize common BPJS URL typos (e.g., .go.ids → .go.id)
+
 const normalizeBpjsUrl = (url: string) => {
   const trimmed = (url || '').trim();
   let normalized = trimmed;
@@ -221,7 +221,7 @@ const normalizeBpjsUrl = (url: string) => {
 };
 
 const addCustomEndpoint = () => {
-  // Normalize then detect BPJS endpoints across known domains and subdomains
+  
   const normalized = normalizeBpjsUrl(newEndpoint.value.url || '');
   if (normalized.corrected) {
     error.value = 'Memperbaiki URL: mengganti domain .go.ids menjadi .go.id';
@@ -231,7 +231,7 @@ const addCustomEndpoint = () => {
   const isBpjsEndpoint = urlStr.includes('bpjs-kesehatan.go.id') ||
                          urlStr.includes('apijkn.bpjs-kesehatan.go.id') ||
                          urlStr.includes('new-api.bpjs-kesehatan.go.id') ||
-                         // Be forgiving to common typos like .go.ids so they still route via proxy
+                         
                          urlStr.includes('bpjs-kesehatan.go.') ||
                          urlStr.includes('apijkn.bpjs-kesehatan.go.');
 
@@ -245,14 +245,14 @@ const addCustomEndpoint = () => {
     timeout: newEndpoint.value.timeout || 10,
     isActive: true,
     isBpjsEndpoint,
-    // Auto-enable proxy for BPJS endpoints so backend adds auth headers
+    
     useProxy: isBpjsEndpoint
   };
 
   customEndpoints.value.push(endpoint);
   saveCustomEndpoints();
   
-  // Reset form
+  
   newEndpoint.value = {
     name: '',
     url: '',
@@ -277,7 +277,7 @@ const updateCustomEndpoint = () => {
   if (editingEndpoint.value) {
     const index = customEndpoints.value.findIndex(ep => ep.id === editingEndpoint.value!.id);
     if (index !== -1) {
-      // Normalize then recalculate BPJS detection when URL changes
+      
       const normalized = normalizeBpjsUrl(newEndpoint.value.url || editingEndpoint.value.url);
       if (normalized.corrected) {
         error.value = 'Memperbaiki URL: mengganti domain .go.ids menjadi .go.id';
@@ -300,14 +300,14 @@ const updateCustomEndpoint = () => {
         timeout: newEndpoint.value.timeout || editingEndpoint.value.timeout || 10,
         isActive: newEndpoint.value.isActive !== undefined ? newEndpoint.value.isActive! : editingEndpoint.value.isActive,
         isBpjsEndpoint,
-        // Auto-enable proxy for BPJS endpoints so backend adds auth headers
+        
         useProxy: isBpjsEndpoint
       } as CustomEndpoint;
       saveCustomEndpoints();
     }
   }
   
-  // Reset form
+  
   newEndpoint.value = {
     name: '',
     url: '',
@@ -352,10 +352,10 @@ const cancelAddEndpoint = () => {
   showAddEndpointModal.value = false;
 };
 
-// Test individual custom endpoint
+
 const testCustomEndpoint = async (endpoint: CustomEndpoint) => {
   try {
-    // Always use the test-custom-endpoint route which handles BPJS authentication automatically
+    
     const url = '/bpjs-monitoring/test-custom-endpoint';
     
     const payload = {
@@ -393,7 +393,7 @@ const testCustomEndpoint = async (endpoint: CustomEndpoint) => {
       customId: endpoint.id,
       httpStatus: result.http_status,
       help: result.help,
-      // Flag 404 endpoints for potential removal
+      
       is404: result.status === 'not_found' || result.code === 404 || result.code === '404',
       errorType: result.status === 'not_found' ? 'ENDPOINT_NOT_FOUND' : 
                  result.status === 'auth_error' ? 'AUTHENTICATION_ERROR' : 
@@ -434,7 +434,7 @@ const fetchMonitoringData = async () => {
     
     const data = await response.json();
     
-    // Test custom endpoints and add to the results
+    
     const customResults: EndpointData[] = [];
     const activeCustomEndpoints = customEndpoints.value.filter(ep => ep.isActive);
     
@@ -450,10 +450,10 @@ const fetchMonitoringData = async () => {
       });
     }
 
-    // Combine default and custom endpoints
+    
     const combinedEndpoints = [...data.endpoints, ...customResults];
     
-    // Recalculate summary with custom endpoints
+    
     const totalEndpoints = combinedEndpoints.length;
     const successCount = combinedEndpoints.filter(ep => ep.status === 'success').length;
     const errorCount = totalEndpoints - successCount;
@@ -477,7 +477,7 @@ const fetchMonitoringData = async () => {
       timestamp: data.timestamp
     };
 
-    // Save to historical data
+    
     saveHistoricalData(monitoringData.value);
     
     lastUpdate.value = new Date().toLocaleTimeString();
@@ -531,7 +531,7 @@ const getBadgeClass = (status: string) => {
   }
 };
 
-// Network Diagnostics Helper Functions
+
 const getDiagnosticStatusColor = (status: string) => {
   switch (status) {
     case 'good': 
@@ -562,11 +562,11 @@ const getDiagnosticIcon = (rootCause: string) => {
   }
 };
 
-// Chart computed properties with localStorage historical data
+
 const responseTimeChartData = computed(() => {
   if (!monitoringData.value) return { series: [], categories: [] };
   
-  const endpoints = monitoringData.value.endpoints.slice(0, 8); // Limit to 8 endpoints for readability
+  const endpoints = monitoringData.value.endpoints.slice(0, 8); 
   const series = [{
     name: 'Response Time (ms)',
     data: endpoints.map(ep => ep.response_time)
@@ -588,12 +588,12 @@ const statusDistributionData = computed(() => {
   return { series, labels };
 });
 
-// Historical trends from localStorage
+
 const historicalTrends = computed(() => {
   const data = historicalData.value;
   if (data.length < 10) return { response_time: [], uptime: [], timestamps: [] };
   
-  // Get last 24 data points (12 hours at 30-second intervals)
+  
   const recentData = data.slice(-24);
   
   return {
@@ -603,7 +603,7 @@ const historicalTrends = computed(() => {
   };
 });
 
-// Chart options
+
 const chartOptions = {
   responseTime: {
     chart: {
@@ -713,7 +713,7 @@ const chartOptions = {
   }
 };
 
-// Count 404 endpoints
+
 const count404Endpoints = (): number => {
   if (!monitoringData.value) return 0;
   return monitoringData.value.endpoints.filter(endpoint => 
@@ -721,7 +721,7 @@ const count404Endpoints = (): number => {
   ).length;
 };
 
-// Remove all 404 endpoints
+
 const removeAll404Endpoints = () => {
   if (!monitoringData.value) return;
   
@@ -745,7 +745,7 @@ onMounted(() => {
   historicalData.value = getHistoricalData();
   fetchMonitoringData();
   
-  // Auto-refresh every 30 seconds
+  
   intervalId = setInterval(() => {
     fetchMonitoringData();
   }, 30000);

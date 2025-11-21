@@ -33,7 +33,7 @@ async function fetchReadings() {
     qs.set('limit', String(limit.value));
     const res = await fetch(`/api/sensors/dht/recent?${qs.toString()}`);
     const json = await res.json();
-    readings.value = (json?.data || []).reverse(); // oldest -> newest for chart
+    readings.value = (json?.data || []).reverse(); 
     lastUpdate.value = new Date().toLocaleString();
   } catch (e: any) {
     error.value = e?.message || 'Failed to load data';

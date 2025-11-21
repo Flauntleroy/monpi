@@ -30,7 +30,7 @@ type Snowflake = {
 };
 
 const { updateAppearance } = useAppearance();
-// Track applied theme so toggle reflects actual state (including 'system')
+
 const isDark = ref(false);
 const updateIsDark = () => {
   if (typeof document !== 'undefined') {
@@ -123,7 +123,7 @@ const isPaused = ref(false);
 const showTemperatureOnly = ref(false);
 let intervalId: number | null = null;
 
-// Modal untuk 10 data terbaru berdasarkan klik card
+
 const latestModalOpen = ref(false);
 const latestModalType = ref<'temperature' | 'humidity' | null>(null);
 const latest10 = computed(() => {
@@ -271,7 +271,7 @@ onMounted(async () => {
   updateIsDarkChart();
   const mql = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   const handler = () => updateIsDarkChart();
-  // Init snowfall flakes (background effect)
+  
   const count = 60;
   const flakes: Snowflake[] = [];
   for (let i = 0; i < count; i++) {

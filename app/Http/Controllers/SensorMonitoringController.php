@@ -17,7 +17,7 @@ class SensorMonitoringController extends Controller
             $deviceId = $request->query('device_id');
             $limit = min(max((int) ($request->query('limit') ?? 100), 1), 500);
             
-            // Get recent readings
+            
             $query = SensorReading::query()->from('sensors')->orderByDesc('recorded_at');
             if ($deviceId) {
                 $query->where('device_id', $deviceId);
@@ -25,13 +25,13 @@ class SensorMonitoringController extends Controller
             
             $recentReadings = $query->limit($limit)->get();
             
-            // Get summary statistics
+            
             $summaryQuery = SensorReading::query()->from('sensors');
             if ($deviceId) {
                 $summaryQuery->where('device_id', $deviceId);
             }
             
-            // Get readings from last 24 hours for summary
+            
             $last24h = $summaryQuery->where('recorded_at', '>=', now()->subHours(24))->get();
             
             $totalReadings = $recentReadings->count();
@@ -42,18 +42,18 @@ class SensorMonitoringController extends Controller
             $minHumidity = $recentReadings->min('humidity');
             $maxHumidity = $recentReadings->max('humidity');
             
-            // 24h statistics
+            
             $avgTemp24h = $last24h->avg('temperature_c');
             $avgHumidity24h = $last24h->avg('humidity');
             
-            // Get unique devices
+            
             $devices = SensorReading::query()->from('sensors')
                 ->select('device_id')
                 ->distinct()
                 ->orderBy('device_id')
                 ->pluck('device_id');
             
-            // Get latest reading for each device (for device status)
+            
             $deviceStatuses = [];
             foreach ($devices as $device) {
                 $latest = SensorReading::query()->from('sensors')
@@ -149,7 +149,7 @@ class SensorMonitoringController extends Controller
 
             $readings = $query->orderBy('recorded_at')->get();
             
-            // Group by date
+            
             $grouped = $readings->groupBy(function ($item) {
                 return $item->recorded_at->format('Y-m-d');
             });
@@ -171,14 +171,14 @@ class SensorMonitoringController extends Controller
                 ];
 
                 if ($dayReadings->isNotEmpty()) {
-                    // Find reading closest to 8:00 AM
+                    
                     $morningTarget = $currentDate->copy()->setTime(8, 0, 0);
                     $morningReading = $dayReadings->sortBy(function ($reading) use ($morningTarget) {
                         return abs($reading->recorded_at->diffInSeconds($morningTarget));
                     })->first();
 
-                    // Only include if within reasonable range (e.g., +/- 1 hour) - optional, but good for accuracy
-                    // For now, just taking the closest one as requested
+                    
+                    
                     if ($morningReading) {
                         $dailyData['morning_reading'] = [
                             'time' => $morningReading->recorded_at->format('H:i:s'),
@@ -187,7 +187,7 @@ class SensorMonitoringController extends Controller
                         ];
                     }
 
-                    // Find reading closest to 6:00 PM (18:00)
+                    
                     $eveningTarget = $currentDate->copy()->setTime(16, 0, 0);
                     $eveningReading = $dayReadings->sortBy(function ($reading) use ($eveningTarget) {
                         return abs($reading->recorded_at->diffInSeconds($eveningTarget));
@@ -206,10 +206,10 @@ class SensorMonitoringController extends Controller
                 $currentDate->addDay();
             }
 
-            // Calculate overall statistics from ALL readings (not daily averages)
+            
             $overallStats = null;
             if ($readings->isNotEmpty()) {
-                // Find records with max/min values
+                
                 $maxTempReading = $readings->sortByDesc('temperature_c')->first();
                 $minTempReading = $readings->sortBy('temperature_c')->first();
                 $maxHumidityReading = $readings->sortByDesc('humidity')->first();
@@ -223,7 +223,7 @@ class SensorMonitoringController extends Controller
                     'avg_temperature' => round($readings->avg('temperature_c'), 2),
                     'avg_humidity' => round($readings->avg('humidity'), 2),
                     'total_readings' => $readings->count(),
-                    // Include full record details for max/min
+                    
                     'max_temp_record' => [
                         'temperature_c' => $maxTempReading->temperature_c,
                         'humidity' => $maxTempReading->humidity,

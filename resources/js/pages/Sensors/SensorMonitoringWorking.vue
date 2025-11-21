@@ -70,12 +70,12 @@ const lastUpdate = ref<string>('');
 const selectedDevice = ref<string | null>(null);
 const limit = ref<number>(100);
 
-// Realtime chart state
+
 const chartLabels = ref<string[]>([]);
 const chartDatasets = ref<any[]>([]);
 const isDarkChart = ref(false);
 
-// Chart controls
+
 const maxPoints = ref(50);
 const refreshIntervalMs = ref(5000);
 const isPaused = ref(false);
@@ -83,7 +83,7 @@ const showTemperatureOnly = ref(false);
 
 let intervalId: number | null = null;
 
-// Computed properties
+
 const onlineDevices = computed(() => {
   return monitoringData.value?.devices.filter(d => d.status === 'online').length || 0;
 });
@@ -113,7 +113,7 @@ const filteredReadings = computed(() => {
   return monitoringData.value?.recent_readings.filter(r => r.device_id === selectedDevice.value) || [];
 });
 
-// Status colors
+
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'online': return 'bg-green-500';
@@ -132,7 +132,7 @@ const getStatusIcon = (status: string) => {
   }
 };
 
-// Temperature color coding
+
 const getTempColor = (temp: number) => {
   if (temp < 18) return 'text-blue-600';
   if (temp > 30) return 'text-red-600';
@@ -145,7 +145,7 @@ const getTempBadgeClass = (temp: number) => {
   return 'inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800';
 };
 
-// Humidity color coding
+
 const getHumidityColor = (humidity: number) => {
   if (humidity < 30) return 'text-orange-600';
   if (humidity > 70) return 'text-blue-600';
@@ -168,13 +168,13 @@ const updateIsDarkChart = () => {
   }
 };
 
-// Fetch monitoring data
+
 const fetchMonitoringData = async () => {
   try {
     isLoading.value = true;
     error.value = null;
     
-    // Use mock API endpoint for testing
+    
     const params = new URLSearchParams();
     if (selectedDevice.value) params.set('device_id', selectedDevice.value);
     params.set('limit', String(limit.value));
@@ -189,7 +189,7 @@ const fetchMonitoringData = async () => {
     monitoringData.value = data;
     lastUpdate.value = data.timestamp;
     
-    // Update chart data
+    
     updateChartData(data);
     
   } catch (err) {
@@ -201,15 +201,15 @@ const fetchMonitoringData = async () => {
 };
 
 const updateChartData = (data: MonitoringData) => {
-  // Process recent readings for chart
+  
   const readings = data.recent_readings;
   if (readings.length === 0) return;
   
-  // Create labels (timestamps)
+  
   const labels = readings.map(r => new Date(r.recorded_at).toLocaleTimeString());
   chartLabels.value = labels;
   
-  // Create temperature dataset
+  
   const tempData = readings.map(r => r.temperature_c);
   const humidityData = readings.map(r => r.humidity);
   
@@ -234,7 +234,7 @@ const updateChartData = (data: MonitoringData) => {
     }
   ];
   
-  // Limit data points
+  
   if (chartLabels.value.length > maxPoints.value) {
     chartLabels.value = chartLabels.value.slice(-maxPoints.value);
   }
@@ -250,7 +250,7 @@ const formatLastSeen = (minutes: number) => {
   return `${Math.floor(minutes / 60)} jam lalu`;
 };
 
-// Watchers
+
 watch(refreshIntervalMs, () => {
   if (!isPaused.value) {
     if (intervalId) clearInterval(intervalId);
@@ -279,16 +279,16 @@ watch(maxPoints, (newMax) => {
 onMounted(async () => {
   await fetchMonitoringData();
   
-  // Start auto refresh
+  
   intervalId = window.setInterval(fetchMonitoringData, refreshIntervalMs.value);
   
-  // Setup dark mode detection
+  
   updateIsDarkChart();
   const mql = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   const handler = () => updateIsDarkChart();
   if (mql) mql.addEventListener('change', handler);
   
-  // Store for cleanup
+  
   (isDarkChart as any)._mql = mql;
   (isDarkChart as any)._handler = handler;
 });

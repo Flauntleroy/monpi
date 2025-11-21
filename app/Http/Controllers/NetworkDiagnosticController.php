@@ -81,20 +81,20 @@ class NetworkDiagnosticController extends Controller
                 try {
                     $startTime = microtime(true);
 
-                    // Header per layanan baseline
+                    
                     $headers = [
                         'User-Agent' => 'BPJS-Monitoring/1.0',
                     ];
 
                     $endpointUrl = $endpoint['url'];
 
-                    // Khusus Cloudflare DoH
+                    
                     if (strpos($endpointUrl, 'cloudflare-dns.com/dns-query') !== false) {
                         $headers['Accept'] = 'application/dns-json';
                         if (strpos($endpointUrl, 'ct=') === false) {
                             $endpointUrl .= (strpos($endpointUrl, '?') !== false ? '&' : '?') . 'ct=application/dns-json';
                         }
-                    // Khusus GitHub API
+                    
                     } elseif (strpos($endpointUrl, 'api.github.com') !== false) {
                         $headers['Accept'] = 'application/vnd.github+json';
                         $headers['X-GitHub-Api-Version'] = '2022-11-28';
@@ -111,7 +111,7 @@ class NetworkDiagnosticController extends Controller
                         ->get($endpointUrl);
                     $endTime = microtime(true);
                     
-                    $responseTime = round(($endTime - $startTime) * 1000); // Convert to ms
+                    $responseTime = round(($endTime - $startTime) * 1000); 
                     
                     $status[$type][] = [
                         'name' => $endpoint['name'],
@@ -121,7 +121,7 @@ class NetworkDiagnosticController extends Controller
                         'timestamp' => now()->toIso8601String()
                     ];
 
-                    // Save to history
+                    
                     $this->saveToHistory($endpoint['name'], [
                         'status' => $response->successful() ? 'success' : 'error',
                         'code' => $response->status(),
@@ -138,7 +138,7 @@ class NetworkDiagnosticController extends Controller
                         'timestamp' => now()->toIso8601String()
                     ];
 
-                    // Save failed attempt to history
+                    
                     $this->saveToHistory($endpoint['name'], [
                         'status' => 'error',
                         'code' => 0,
@@ -157,7 +157,7 @@ class NetworkDiagnosticController extends Controller
         $cacheKey = "endpoint_history_{$endpointName}";
         $history = Cache::get($cacheKey, []);
         
-        // Keep last 100 records only
+        
         array_unshift($history, $data);
         if (count($history) > 100) {
             array_pop($history);
@@ -288,7 +288,7 @@ class NetworkDiagnosticController extends Controller
         
         $diagnosis = [];
         
-        // Check connection status
+        
         if ($bpjsFailed > 0 && $baselineFailed > 0) {
             $diagnosis[] = "⚠️ General connectivity issues detected";
         } elseif ($bpjsFailed > 0 && $baselineFailed == 0) {
@@ -297,12 +297,12 @@ class NetworkDiagnosticController extends Controller
             $diagnosis[] = "🌐 Partial network issues (BPJS still accessible)";
         }
         
-        // Check latency
+        
         if ($latencyComparison['ratio'] > 2) {
             $diagnosis[] = "⏱️ BPJS endpoints are significantly slower than baseline";
         }
         
-        // If everything looks good
+        
         if (empty($diagnosis)) {
             $diagnosis[] = "✅ All systems operating normally";
         }
@@ -317,7 +317,7 @@ class NetworkDiagnosticController extends Controller
         
         $recommendations = [];
         
-        // Connection-based recommendations
+        
         $bpjsFailed = collect($currentStatus['bpjs'])->where('status', 'error')->count();
         $baselineFailed = collect($currentStatus['baseline'])->where('status', 'error')->count();
         
@@ -331,13 +331,13 @@ class NetworkDiagnosticController extends Controller
             $recommendations[] = "🔄 Try clearing your BPJS session";
         }
         
-        // Latency-based recommendations
+        
         if ($latencyComparison['ratio'] > 2) {
             $recommendations[] = "🚀 Consider using a faster DNS server";
             $recommendations[] = "🌐 Check for network congestion";
         }
         
-        // If no specific recommendations needed
+        
         if (empty($recommendations)) {
             $recommendations[] = "✅ No action needed - all systems optimal";
         }

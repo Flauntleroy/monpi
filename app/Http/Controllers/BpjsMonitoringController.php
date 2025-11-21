@@ -15,7 +15,7 @@ use App\Helpers\FonnteWhatsapp;
 
 class BpjsMonitoringController extends Controller
 {
-    // Kredensial BPJS
+    
     private $api_url = 'https://apijkn.bpjs-kesehatan.go.id/vclaim-rest/';
     private $consid;
     private $secretkey;
@@ -30,7 +30,7 @@ class BpjsMonitoringController extends Controller
 
     public function index()
     {
-        // Seed endpoint configurations if empty
+        
         $this->seedEndpointConfigs();
         
         return Inertia::render('BpjsMonitoring/Dashboard');
@@ -38,7 +38,7 @@ class BpjsMonitoringController extends Controller
 
     public function getMonitoringData()
     {
-        // Check cache first (refresh every 30 seconds)
+        
         return Cache::remember('bpjs_monitoring_data', 30, function () {
             return $this->performMonitoring();
         });
@@ -49,7 +49,7 @@ class BpjsMonitoringController extends Controller
         $tStamp = (string) time();
         $checkedAt = Carbon::now(config('app.timezone'));
 
-        // Get active endpoint configurations
+        
         $endpointConfigs = BpjsEndpointConfig::active()->get();
         
         if ($endpointConfigs->isEmpty()) {
@@ -82,7 +82,7 @@ class BpjsMonitoringController extends Controller
                     'Content-Type' => 'application/json',
                 ];
 
-                // Merge custom headers if any
+                
                 if ($config->custom_headers) {
                     $headers = array_merge($headers, $config->custom_headers);
                 }
@@ -128,7 +128,7 @@ class BpjsMonitoringController extends Controller
                 $error++;
             }
 
-            // Log to database
+            
             BpjsMonitoringLog::create([
                 'endpoint_name' => $config->name,
                 'endpoint_url' => $config->url,
@@ -141,10 +141,10 @@ class BpjsMonitoringController extends Controller
                 'checked_at' => $checkedAt
             ]);
 
-            // Check for alerts
+            
             $this->checkForAlerts($config, $response_time, $status);
 
-            // Determine severity based on response time
+            
             $severity = $config->getResponseTimeSeverity($response_time);
 
             $results[] = [
@@ -159,20 +159,20 @@ class BpjsMonitoringController extends Controller
             ];
 
             $total_response_time += $response_time;
-            usleep(100000); // 0.1 detik delay
+            usleep(100000); 
         }
 
         $total = count($results);
         $avg_response_time = $total > 0 ? round($total_response_time / $total, 2) : 0;
         $uptime_percentage = $total > 0 ? round(($success / $total) * 100, 2) : 0;
 
-        // Get active alerts
+        
         $activeAlerts = BpjsMonitoringAlert::active()
             ->orderBy('triggered_at', 'desc')
             ->limit(10)
             ->get();
 
-        // Get recent statistics
+        
         $stats = $this->getRecentStatistics();
 
         return response()->json([
@@ -203,7 +203,7 @@ class BpjsMonitoringController extends Controller
 
     private function checkForAlerts($config, $responseTime, $status)
     {
-        // Check for consecutive errors
+        
         if ($status !== 'success') {
             $recentLogs = BpjsMonitoringLog::getConsecutiveErrors($config->name, $config->consecutive_error_threshold);
             
@@ -213,7 +213,7 @@ class BpjsMonitoringController extends Controller
                 });
 
                 if ($allErrors) {
-                    // Check if we already have an active alert for this
+                    
                     $existingAlert = BpjsMonitoringAlert::active()
                         ->forEndpoint($config->name)
                         ->where('alert_type', 'consecutive_errors')
@@ -234,7 +234,7 @@ class BpjsMonitoringController extends Controller
                 }
             }
         } else {
-            // Resolve consecutive error alerts if endpoint is now successful
+            
             BpjsMonitoringAlert::active()
                 ->forEndpoint($config->name)
                 ->where('alert_type', 'consecutive_errors')
@@ -244,7 +244,7 @@ class BpjsMonitoringController extends Controller
                 });
         }
 
-        // Check for response time alerts
+        
         if ($responseTime >= $config->critical_threshold_ms) {
             $existingAlert = BpjsMonitoringAlert::active()
                 ->forEndpoint($config->name)
@@ -397,11 +397,11 @@ class BpjsMonitoringController extends Controller
         $start = microtime(true);
         
         try {
-            // Check if this is a BPJS endpoint
+            
             $isBpjsEndpoint = $this->isBpjsEndpoint($url);
 
             if (strtoupper($method) === 'PING') {
-                // Perform HEAD ping; fallback to GET if HEAD not allowed
+                
                 if ($isBpjsEndpoint) {
                     $headers = $this->getBpjsHeaders();
                     $start = microtime(true);
@@ -409,7 +409,7 @@ class BpjsMonitoringController extends Controller
                         ->timeout($timeout)
                         ->head($url);
                     if ($response->status() === 405) {
-                        // Fallback to GET for servers that do not support HEAD
+                        
                         $start = microtime(true);
                         $response = Http::withHeaders($headers)
                             ->timeout($timeout)
@@ -425,42 +425,42 @@ class BpjsMonitoringController extends Controller
                 }
             } else {
                 if ($isBpjsEndpoint) {
-                    // For BPJS endpoints, use proper authentication headers
+                    
                     $headers = $this->getBpjsHeaders();
                     $response = Http::withHeaders($headers)
                         ->timeout($timeout)
                         ->get($url);
                 } else {
-                    // For other endpoints, simple request
+                    
                     $response = Http::timeout($timeout)->get($url);
                 }
             }
             
             $end = microtime(true);
-            $responseTime = round(($end - $start) * 1000); // Convert to milliseconds
+            $responseTime = round(($end - $start) * 1000); 
             
             $severity = $this->getSeverityFromResponseTime($responseTime);
             
-            // For BPJS endpoints, check the metaData structure (skip for PING)
+            
             if ($isBpjsEndpoint && strtoupper($method) !== 'PING' && $response->successful()) {
                 $json = $response->json();
                 $code = $json['metaData']['code'] ?? $response->status();
                 $message = $json['metaData']['message'] ?? $response->reason();
                 $status = ($code == 200 || $code == '200') ? 'success' : 'error';
                 
-                // Kirim notifikasi jika code 201 atau 404 (SELALU, untuk BPJS endpoint) dengan cooldown 30 menit
+                
                 if (in_array($code, [201, '201', 404, '404'])) {
                     FonnteWhatsapp::sendEndpointAlert("BPJS API", $code, $message, $url, 30);
                 }
             } else {
                 $code = $response->status();
                 $message = $response->reason() ?? 'OK';
-                // For PING, treat 2xx-3xx as reachable
+                
                 $status = (strtoupper($method) === 'PING')
                     ? (($code >= 200 && $code < 400) ? 'success' : 'error')
                     : ($response->successful() ? 'success' : 'error');
                 
-                // Kirim notifikasi jika code 201 atau 404 (SELALU, tidak peduli successful atau tidak) dengan cooldown 30 menit
+                
                 if (in_array($code, [201, '201', 404, '404'])) {
                     FonnteWhatsapp::sendEndpointAlert("API", $code, $message, $url, 30);
                 }
@@ -479,7 +479,7 @@ class BpjsMonitoringController extends Controller
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             $end = microtime(true);
             $responseTime = round(($end - $start) * 1000);
-            // Kirim notifikasi WhatsApp untuk timeout dengan cooldown 60 menit
+            
             FonnteWhatsapp::sendCriticalAlert("API Timeout", "Connection timeout", $url, 60);
             return response()->json([
                 'response_time' => $responseTime,
@@ -493,7 +493,7 @@ class BpjsMonitoringController extends Controller
         } catch (\Exception $e) {
             $end = microtime(true);
             $responseTime = round(($end - $start) * 1000);
-            // Kirim notifikasi WhatsApp untuk error critical dengan cooldown 60 menit
+            
             FonnteWhatsapp::sendCriticalAlert("API Critical", $e->getMessage(), $url, 60);
             return response()->json([
                 'response_time' => $responseTime,
@@ -535,7 +535,7 @@ class BpjsMonitoringController extends Controller
 
     private function getBodyPreview(string $body): string
     {
-        // Return first 200 characters of response body for preview
+        
         return strlen($body) > 200 ? substr($body, 0, 200) . '...' : $body;
     }
 }

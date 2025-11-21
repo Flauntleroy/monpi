@@ -46,7 +46,7 @@ class BpjsEndpointConfig extends Model
         return $this->hasMany(BpjsMonitoringAlert::class, 'endpoint_name', 'name');
     }
 
-    // Method untuk menentukan severity berdasarkan response time
+    
     public function getResponseTimeSeverity($responseTime)
     {
         if ($responseTime >= $this->critical_threshold_ms) {

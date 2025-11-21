@@ -44,21 +44,21 @@ const isLoading = ref(false);
 const error = ref<string | null>(null);
 const lastUpdate = ref<string>('');
 
-// History per endpoint untuk heartbeat
+
 const endpointHistories = ref<Record<string, EndpointHistoryEntry[]>>({});
 const getEndpointKey = (ep: EndpointData, idx?: number) => ep.customId || ep.name || ep.url || String(idx ?? '0');
 
-// Helper: warna dot status
+
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'success': return 'bg-green-500';
-    case 'timeout': return 'bg-red-500'; // RTO merah
-    case 'error': return 'bg-red-500';   // tidak connect merah
+    case 'timeout': return 'bg-red-500'; 
+    case 'error': return 'bg-red-500';   
     default: return 'bg-gray-500';
   }
 };
 
-// Badge ms: success hijau/kuning saja; timeout/error merah
+
 const getResponseBadgeClass = (responseTime: number) => {
   const rt = Math.round(responseTime);
   if (rt < 1000) {
@@ -79,7 +79,7 @@ const getBadgeClass = (status: string) => {
   }
 };
 
-// Warna heartbeat dot: success lambat (>=1000ms) kuning, merah hanya untuk timeout/error
+
 const getHeartbeatDotClass = (h: EndpointHistoryEntry) => {
   const rt = Math.round(h.response_time);
   if (h.status === 'success') {
@@ -90,13 +90,13 @@ const getHeartbeatDotClass = (h: EndpointHistoryEntry) => {
   return 'bg-gray-500';
 };
 
-// Filter endpoint aman untuk render
+
 const safeEndpoints = computed(() => {
   const eps = monitoringData.value?.endpoints || [];
   return eps.filter((ep: any) => ep && typeof ep === 'object' && (typeof ep.name === 'string' || typeof ep.url === 'string'));
 });
 
-// Polling data
+
 let intervalId: number | null = null;
 const fetchMonitoringData = async () => {
   try {
@@ -115,7 +115,7 @@ const fetchMonitoringData = async () => {
     monitoringData.value = data;
     lastUpdate.value = data.timestamp;
 
-    // Update history untuk heartbeat (maks 30 entri)
+    
     const ts = data.timestamp;
     const allEndpoints: EndpointData[] = (Array.isArray(data.endpoints) ? data.endpoints : []) as EndpointData[];
     allEndpoints.forEach((ep, idx) => {
@@ -139,7 +139,7 @@ const fetchMonitoringData = async () => {
 };
 
 onMounted(() => {
-  // Force default theme to light on Mini Monitoring
+  
   try {
     updateTheme('light');
   } catch {}
@@ -150,7 +150,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (intervalId) clearInterval(intervalId);
-  // Restore theme preference when leaving the page
+  
   try {
     const saved = (typeof window !== 'undefined' ? localStorage.getItem('appearance') : null) as 'light' | 'dark' | 'system' | null;
     updateTheme(saved || 'system');

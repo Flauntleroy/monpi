@@ -37,10 +37,10 @@ interface CustomEndpoint {
   timeout?: number;
   isActive: boolean;
   isBpjsEndpoint?: boolean; // Flag untuk BPJS endpoints
-  useProxy?: boolean; // Flag untuk use backend proxy
+  useProxy?: boolean; 
 }
 
-// Daftar nama endpoint yang harus diabaikan dari tampilan utama
+
 const IGNORED_ENDPOINT_NAMES = new Set<string>([
   'Dokter',
   'Faskes',
@@ -109,7 +109,7 @@ const showAddEndpointModal = ref(false);
 const showManageEndpointsModal = ref(false);
 const editingEndpoint = ref<CustomEndpoint | null>(null);
 
-// Form data for new endpoint
+
 const newEndpoint = ref<Partial<CustomEndpoint>>({
   name: '',
   url: '',
@@ -122,10 +122,10 @@ const newEndpoint = ref<Partial<CustomEndpoint>>({
 
 let intervalId: number | null = null;
 
-// Realtime chart state (avg response time over time)
+
 const chartLabels = ref<string[]>([]);
 const chartValues = ref<number[]>([]);
-// Multi-series datasets untuk response time per endpoint
+
 interface LineDataset {
   id: string;
   label: string;
@@ -145,7 +145,7 @@ const getColorForId = (id: string) => {
   return seriesColors[hash % seriesColors.length];
 };
 
-// Kontrol Refresh & Filter Chart
+
 const maxPoints = ref(50);
 const refreshIntervalMs = ref(30000);
 const isPaused = ref(false);
@@ -187,7 +187,7 @@ const updateIsDarkChart = () => {
   }
 };
 
-// Microcopy untuk toolbar dan header
+
 const refreshCopy = computed(() => {
   const sec = Math.max(1, Math.round((refreshIntervalMs.value || 30000) / 1000));
   return `Refreshing every ${sec}s${isPaused.value ? ' • Paused' : ''}`;
@@ -200,19 +200,19 @@ const headerStatusCopy = computed(() => {
   return `${proxyText} • Uptime: ${uptimeText}`;
 });
 
-// Safeguard: filter out null/invalid endpoint items before rendering
+
 const safeEndpoints = computed(() => {
   const eps = monitoringData.value?.endpoints || [];
   return eps.filter((ep: any) => {
     if (!ep) return false;
     const t = typeof ep;
     if (t !== 'object') return false;
-    // ensure we have at least an identifier to show
+    
     return typeof ep.name === 'string' || typeof ep.url === 'string';
   });
 });
 
-// LocalStorage functions
+
 const saveCustomEndpoints = () => {
   localStorage.setItem('bpjs_custom_endpoints', JSON.stringify(customEndpoints.value));
 };
@@ -222,7 +222,7 @@ const loadCustomEndpoints = () => {
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      // Sanitize: remove null/invalid entries to prevent runtime errors
+      
       customEndpoints.value = Array.isArray(parsed)
         ? parsed.filter((ep: any) => ep && typeof ep === 'object')
         : [];
@@ -233,7 +233,7 @@ const loadCustomEndpoints = () => {
   }
 };
 
-// Server persistence helpers
+
 const getCsrfToken = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null)?.content;
 const apiFetch = async (url: string, options: any = {}) => {
   const headers: Record<string, string> = {
@@ -274,14 +274,14 @@ const loadCustomEndpointsFromServer = async () => {
     const res = await apiFetch('/bpjs-monitoring/custom-endpoints', { method: 'GET' });
     const list = Array.isArray(res?.data) ? res.data : [];
     customEndpoints.value = list.map(mapServerToClientEndpoint);
-    saveCustomEndpoints(); // cache locally for offline usage
+    saveCustomEndpoints(); 
   } catch (e) {
     console.warn('Gagal load dari server, fallback ke localStorage:', e);
     loadCustomEndpoints();
   }
 };
 
-// Normalize common BPJS URL typos (e.g., .go.ids → .go.id)
+
 const normalizeBpjsUrl = (url: string) => {
   const trimmed = (url || '').trim();
   let normalized = trimmed;
@@ -308,14 +308,14 @@ const addCustomEndpoint = async () => {
     return;
   }
 
-  // Normalize URL first to fix common typos
+  
   const normalized = normalizeBpjsUrl(newEndpoint.value.url);
   if (normalized.corrected) {
     error.value = 'Memperbaiki URL: mengganti domain .go.ids menjadi .go.id';
     setTimeout(() => { error.value = null; }, 5000);
   }
 
-  // Detect if this is a BPJS endpoint (be forgiving to common typos)
+  
   const isBpjsEndpoint = normalized.url.includes('apijkn.bpjs-kesehatan.go.id') ||
                          normalized.url.includes('bpjs-kesehatan.go.id') ||
                          normalized.url.includes('new-api.bpjs-kesehatan.go.id') ||
@@ -358,13 +358,13 @@ const addCustomEndpoint = async () => {
     saveCustomEndpoints();
   }
   
-  // Show warning for BPJS endpoints
+  
   if (isBpjsEndpoint) {
     error.value = 'BPJS endpoint detected! This will be tested via backend proxy with proper authentication.';
     setTimeout(() => { error.value = null; }, 5000);
   }
   
-  // Reset form
+  
   newEndpoint.value = {
     name: '',
     url: '',
@@ -377,7 +377,7 @@ const addCustomEndpoint = async () => {
   
   showAddEndpointModal.value = false;
   
-  // Refresh monitoring data to include new endpoint
+  
   fetchMonitoringData();
 };
 
@@ -401,7 +401,7 @@ const updateCustomEndpoint = async () => {
 
   const index = customEndpoints.value.findIndex(ep => ep.id === editingEndpoint.value!.id);
   if (index !== -1) {
-    // Normalize URL then recalculate BPJS detection when URL changes
+    
     const normalized = normalizeBpjsUrl(newEndpoint.value.url);
     if (normalized.corrected) {
       error.value = 'Memperbaiki URL: mengganti domain .go.ids menjadi .go.id';
@@ -495,17 +495,17 @@ const closeAddEndpointModal = () => {
   error.value = null;
 };
 
-// Test custom endpoint
+
 const testCustomEndpoint = async (endpoint: CustomEndpoint): Promise<EndpointData> => {
   const start = performance.now();
   
   try {
     let response;
     
-    // Gunakan backend proxy untuk BPJS endpoints atau method PING
-    // PING diarahkan ke backend agar bisa menggunakan HEAD tanpa CORS
+    
+    
     if (endpoint.isBpjsEndpoint || endpoint.method === 'PING') {
-      // Test via backend (BPJS gunakan auth; PING gunakan HEAD di server)
+      
       response = await fetch('/bpjs-monitoring/test-custom-endpoint', {
         method: 'POST',
         headers: {
@@ -516,7 +516,7 @@ const testCustomEndpoint = async (endpoint: CustomEndpoint): Promise<EndpointDat
           method: endpoint.method || 'GET',
           timeout: endpoint.timeout || 10
         }),
-        signal: AbortSignal.timeout((endpoint.timeout || 10) * 1000 + 5000) // Extra time for backend
+        signal: AbortSignal.timeout((endpoint.timeout || 10) * 1000 + 5000) 
       });
       
       if (!response.ok) {
@@ -540,7 +540,7 @@ const testCustomEndpoint = async (endpoint: CustomEndpoint): Promise<EndpointDat
         customId: endpoint.id
       };
     } else {
-      // Direct browser request for non-BPJS endpoints
+      
       response = await fetch(endpoint.url, {
         method: endpoint.method || 'GET',
         headers: {
@@ -571,7 +571,7 @@ const testCustomEndpoint = async (endpoint: CustomEndpoint): Promise<EndpointDat
     const end = performance.now();
     const response_time = Math.round(end - start);
     
-    // Better error handling for common issues
+    
     let message = 'Network error';
     let status: 'error' | 'timeout' = 'error';
     
@@ -601,7 +601,7 @@ const testCustomEndpoint = async (endpoint: CustomEndpoint): Promise<EndpointDat
   }
 };
 
-// Helper function to determine severity from response time
+
 const getSeverityFromResponseTime = (responseTime: number): string => {
   if (responseTime >= 2000) return 'critical';
   if (responseTime >= 1000) return 'slow';  
@@ -614,7 +614,7 @@ const fetchMonitoringData = async () => {
     isLoading.value = true;
     error.value = null;
     
-    // Fetch default BPJS endpoints using the correct endpoint
+    
     const response = await fetch('/bpjs-monitoring/data');
     
     if (!response.ok) {
@@ -629,7 +629,7 @@ const fetchMonitoringData = async () => {
     
     const data = await response.json();
     
-    // Test custom endpoints and add to the results
+    
     const customResults: EndpointData[] = [];
     const activeCustomEndpoints = customEndpoints.value
       .filter((ep: any) => ep && typeof ep === 'object' && ep.isActive && !IGNORED_ENDPOINT_NAMES.has(ep.name));
@@ -643,7 +643,7 @@ const fetchMonitoringData = async () => {
         if (result.status === 'fulfilled') {
           customResults.push(result.value);
         } else {
-          // Handle failed custom endpoint test
+          
           const endpoint = activeCustomEndpoints[index];
           customResults.push({
             name: endpoint.name,
@@ -661,13 +661,13 @@ const fetchMonitoringData = async () => {
       });
     }
     
-    // Sanitize default endpoints to avoid null/invalid items
+    
     const defaultEndpoints: EndpointData[] = Array.isArray(data.endpoints)
       ? data.endpoints.filter((ep: any) => ep && typeof ep === 'object' && typeof ep.name === 'string' && !IGNORED_ENDPOINT_NAMES.has(ep.name))
       : [];
 
-    // Combine default and custom endpoints, lalu deduplikasi berdasarkan nama
-    // Prefer default endpoints jika ada duplikasi nama antara default vs custom
+    
+    
     const combined = [...defaultEndpoints];
     const nameSet = new Set<string>(defaultEndpoints.map(ep => (ep.name || '').trim().toLowerCase()));
     for (const ep of customResults) {
@@ -679,7 +679,7 @@ const fetchMonitoringData = async () => {
     }
     const allEndpoints = combined;
     
-    // Recalculate summary with custom endpoints included
+    
     const totalEndpoints = allEndpoints.length;
     const successfulEndpoints = allEndpoints.filter(ep => ep.status === 'success').length;
     const failedEndpoints = totalEndpoints - successfulEndpoints;
@@ -702,7 +702,7 @@ const fetchMonitoringData = async () => {
 
     lastUpdate.value = data.timestamp;
 
-    // Push new point to realtime chart
+    
     const label = new Date(data.timestamp).toLocaleTimeString();
     chartLabels.value.push(label);
     chartValues.value.push(Math.round(monitoringData.value.summary.avg_response_time));
@@ -711,7 +711,7 @@ const fetchMonitoringData = async () => {
       chartValues.value.shift();
     }
 
-    // Build per-endpoint series for multi-line chart
+    
     const endpointMap = new Map<string, { label: string; value: number }>();
     allEndpoints.forEach((ep) => {
       const key = ep.customId || ep.name || ep.url;
@@ -719,14 +719,14 @@ const fetchMonitoringData = async () => {
       endpointMap.set(key, { label: labelName, value: Math.round(ep.response_time) });
     });
 
-    // Append current values to existing datasets; use null when endpoint missing
+    
     chartDatasets.value.forEach((ds) => {
       const entry = endpointMap.get(ds.id);
       ds.data.push(entry ? entry.value : null);
       if (ds.data.length > maxPoints.value) ds.data.shift();
     });
 
-    // Add new datasets for endpoints that appear now
+    
     const existingKeys = new Set(chartDatasets.value.map((ds) => ds.id));
     endpointMap.forEach((entry, key) => {
       if (!existingKeys.has(key)) {
@@ -742,7 +742,7 @@ const fetchMonitoringData = async () => {
       }
     });
 
-    // Update per-endpoint status histories for expand panel
+    
     const ts = data.timestamp;
     allEndpoints.forEach((ep, idx) => {
       const key = getEndpointKey(ep, idx);
@@ -754,11 +754,11 @@ const fetchMonitoringData = async () => {
         response_time: Math.round(ep.response_time),
         timestamp: ts,
       });
-      // Keep last 30 entries (single-line heartbeat)
+      
       if (endpointHistories.value[key].length > 30) endpointHistories.value[key].pop();
     });
 
-    // Sync dark mode for chart styling
+    
     updateIsDarkChart();
     
   } catch (err) {
@@ -794,21 +794,21 @@ const getResponseTimeColor = (responseTime: number) => {
   return 'text-red-600';
 };
 
-// Badge (background + text) berdasarkan response time
-// Note: Merah hanya untuk RTO / tidak connect (timeout/error),
-// sehingga untuk success tidak pernah merah meskipun lambat.
+
+
+
 const getResponseBadgeClass = (responseTime: number) => {
   const rt = Math.round(responseTime);
   if (rt < 1000) {
     return 'inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800';
   }
-  // >= 1000ms dianggap lambat -> kuning
+  
   return 'inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800';
 };
 
-// Warna heartbeat (dot) berdasar status + response time
-// Merah hanya untuk RTO/timeout atau error (tidak connect),
-// success lambat ditandai kuning.
+
+
+
 const getHeartbeatDotClass = (h: EndpointHistoryEntry) => {
   const rt = Math.round(h.response_time);
   if (h.status === 'success') {
@@ -828,10 +828,10 @@ const getBadgeClass = (status: string) => {
     case 'success':
       return 'inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800';
     case 'timeout':
-      // Timeout (RTO) -> merah
+      
       return 'inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800';
     case 'error':
-      // Tidak connect / error -> merah
+      
       return 'inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800';
     default:
       return 'inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800';
@@ -853,7 +853,7 @@ onMounted(async () => {
   const mql = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   const handler = () => updateIsDarkChart();
   if (mql) mql.addEventListener('change', handler);
-  // store for cleanup
+  
   (isDarkChart as any)._mql = mql;
   (isDarkChart as any)._handler = handler;
 });
@@ -867,7 +867,7 @@ onUnmounted(() => {
   if (mql && handler) mql.removeEventListener('change', handler as EventListener);
 });
 
-// Watchers untuk kontrol refresh
+
 watch(refreshIntervalMs, () => {
   const starter = (fetchMonitoringData as any)._startInterval as (() => void) | undefined;
   if (!isPaused.value && starter) starter();
@@ -891,7 +891,7 @@ watch(maxPoints, (newMax) => {
   });
 });
 
-// Expand/collapse dan state riwayat per endpoint (harus berada dalam <script>)
+
 const expandedKeys = ref<string[]>([]);
 const endpointHistories = ref<Record<string, EndpointHistoryEntry[]>>({});
 
@@ -920,19 +920,19 @@ const getUptimePercentageForKey = (key: string): number | null => {
   const history = endpointHistories.value[key] || [];
   if (!history.length) return null;
   const ok = history.filter(h => h.status === 'success').length;
-  return Math.round((ok / history.length) * 10000) / 100; // 2 decimals
+  return Math.round((ok / history.length) * 10000) / 100; 
 };
 
 const clearEndpointHistory = (key: string) => {
   endpointHistories.value[key] = [];
 };
 
-// Open external Uptime Kuma dashboard
+
 const openUptimeKuma = () => {
   window.open('http://192.168.0.2:3001', '_blank', 'noopener,noreferrer');
 };
 
-// Layout menyamping: state seleksi endpoint & helper
+
 const selectedKey = ref<string | null>(null);
 const selectEndpoint = (key: string) => { selectedKey.value = key; };
 const getEndpointByKey = (key: string): { endpoint: EndpointData; idx: number } | null => {
@@ -945,7 +945,7 @@ const getEndpointByKey = (key: string): { endpoint: EndpointData; idx: number } 
 };
 const selected = computed(() => (selectedKey.value ? getEndpointByKey(selectedKey.value) : null));
 
-// Auto-pilih endpoint pertama saat data tersedia
+
 watch(safeEndpoints, (eps) => {
   if (!selectedKey.value && eps.length) {
     selectedKey.value = getEndpointKey(eps[0], 0);

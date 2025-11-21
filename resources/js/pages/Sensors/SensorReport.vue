@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { useAppearance } from '@/composables/useAppearance';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
@@ -83,7 +83,7 @@ const reportData = ref<ReportData | null>(null);
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 
-// Form inputs
+
 const selectedMonth = ref(new Date().getMonth() + 1);
 const selectedYear = ref(new Date().getFullYear());
 const selectedDevice = ref<string | null>(null);
@@ -98,22 +98,22 @@ const years = computed(() => {
   return Array.from({ length: 5 }, (_, i) => currentYear - i);
 });
 
-// Selected day for detail modal
+
 const selectedDay = ref<DailyData | null>(null);
 
-// Selected record for max/min temperature detail modal
+
 interface SelectedRecordData {
   type: string;
   record: RecordDetail;
 }
 const selectedRecord = ref<SelectedRecordData | null>(null);
 
-// Calendar helper functions
+
 const getFirstDayOfMonth = () => {
   if (!reportData.value || reportData.value.data.length === 0) return 0;
   const firstDate = new Date(reportData.value.data[0].date);
-  const dayOfWeek = firstDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-  return dayOfWeek; // Return number of empty cells needed
+  const dayOfWeek = firstDate.getDay(); 
+  return dayOfWeek; 
 };
 
 const openDayDetail = (day: DailyData) => {
@@ -125,9 +125,9 @@ const getTotalReadings = () => {
   return reportData.value.data.reduce((total, day) => total + (day.readings_count || 0), 0);
 };
 
-// Theme appearance API
+
 const { updateAppearance } = useAppearance();
-// Track applied theme so toggle reflects actual state (including 'system')
+
 const isDark = ref(false);
 const updateIsDark = () => {
   if (typeof document !== 'undefined') {
@@ -257,70 +257,152 @@ const downloadXLSX = () => {
   XLSX.writeFile(wb, `sensor-report-${selectedYear.value}-${month}.xlsx`);
 };
 
-// Generate chart image (line chart: avg temperature & humidity per day)
+
+
+const glassBackgroundPlugin = {
+  id: 'glassBackground',
+  beforeDraw: (chart: any) => {
+    const { ctx, chartArea } = chart;
+    if (!chartArea) return;
+    const { left, top, right, bottom, width, height } = chartArea;
+    ctx.save();
+    
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.12)';
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 4;
+    
+    const r = 16;
+    const x = left - 20;
+    const y = top - 20;
+    const w = width + 40;
+    const h = height + 40;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    
+    const grad = ctx.createLinearGradient(0, y, 0, y + h);
+    grad.addColorStop(0, 'rgba(255,255,255,0.35)');
+    grad.addColorStop(1, 'rgba(255,255,255,0.15)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+    
+    ctx.strokeStyle = 'rgba(220,230,245,0.8)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  },
+};
+
+const lineGlowPlugin = {
+  id: 'lineGlow',
+  beforeDatasetsDraw: (chart: any) => {
+    const { ctx } = chart;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 2;
+  },
+  afterDatasetsDraw: (chart: any) => {
+    chart.ctx.restore();
+  },
+};
+
 const generateReportChartImage = async (): Promise<string | null> => {
   if (!reportData.value) return null;
   const canvas = document.createElement('canvas');
-  // Set fixed size for high-quality image
+  
   canvas.width = 1000;
   canvas.height = 400;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
-  const labels = reportData.value.data.map(d => {
-    const date = new Date(d.date);
-    return `${String(date.getDate()).padStart(2, '0')}`;
-  });
-  const temps = reportData.value.data.map(d => d.avg_temperature ?? null);
-  const humids = reportData.value.data.map(d => d.avg_humidity ?? null);
+  const chartData = getReportChartData();
+  if (!chartData) return null;
 
   const chart = new Chart(ctx, {
-    type: 'line',
+    type: 'bar',
     data: {
-      labels,
+      labels: chartData.labels,
       datasets: [
         {
           label: 'Avg Temperature (°C)',
-          data: temps,
-          borderColor: 'rgba(239, 68, 68, 0.9)',
-          backgroundColor: 'rgba(239, 68, 68, 0.2)',
-          tension: 0.3,
-          fill: true,
-          spanGaps: true,
+          data: chartData.temps,
+          borderColor: 'rgba(239, 68, 68, 0.95)',
+          backgroundColor: 'rgba(239, 68, 68, 0.35)',
+          borderWidth: 1,
+          borderRadius: 6,
+          maxBarThickness: 18,
         },
         {
           label: 'Avg Humidity (%)',
-          data: humids,
-          borderColor: 'rgba(59, 130, 246, 0.9)',
-          backgroundColor: 'rgba(59, 130, 246, 0.2)',
-          tension: 0.3,
-          fill: true,
-          spanGaps: true,
+          data: chartData.humids,
+          borderColor: 'rgba(59, 130, 246, 0.95)',
+          backgroundColor: 'rgba(59, 130, 246, 0.35)',
+          borderWidth: 1,
+          borderRadius: 6,
+          maxBarThickness: 18,
         },
       ],
     },
     options: {
       responsive: false,
       maintainAspectRatio: false,
+      animation: { duration: 0 },
       plugins: {
         legend: { display: true, position: 'top' },
         title: { display: false },
       },
       scales: {
-        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+        y: { beginAtZero: true, min: 0, max: Math.ceil((chartData.maxVal || 10) + 5), grid: { color: 'rgba(0,0,0,0.05)' } },
         x: { grid: { display: false } },
       },
     },
+    plugins: [glassBackgroundPlugin, lineGlowPlugin],
   });
 
-  // Allow the chart to render
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  
+  chart.update();
+  await new Promise((resolve) => setTimeout(resolve, 200));
   const dataUrl = canvas.toDataURL('image/png');
   chart.destroy();
   return dataUrl;
 };
 
-// Compute overall averages for temperature and humidity
+
+const getReportChartData = () => {
+  if (!reportData.value) return null;
+  const labels = reportData.value.data.map(d => {
+    const parts = d.date?.split?.('-');
+    const day = parts && parts.length === 3 ? parts[2] : '—';
+    return day.padStart(2, '0');
+  });
+  const temps = reportData.value.data.map(d => {
+    const v = d.avg_temperature;
+    return typeof v === 'number' ? v : null;
+  });
+  const humids = reportData.value.data.map(d => {
+    let v = d.avg_humidity;
+    if (typeof v === 'number' && v > 0 && v <= 1) v = v * 100; 
+    return typeof v === 'number' ? v : null;
+  });
+  const maxVal = Math.max(
+    ...temps.filter((v): v is number => typeof v === 'number'),
+    ...humids.filter((v): v is number => typeof v === 'number'),
+  );
+  return { labels, temps, humids, maxVal };
+};
+
+
+
+
 const computeOverallStats = () => {
   if (!reportData.value) return { avgTemp: 0, avgHumidity: 0, totalDays: 0 };
   let tempSum = 0;
@@ -349,17 +431,17 @@ const downloadPDF = async () => {
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const month = String(selectedMonth.value).padStart(2, '0');
-  const title = 'Laporan Harian Data Suhu dan Kelembaban Unit IT.';
+  const title = 'Laporan Data Suhu dan Kelembaban Unit IT';
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 40;
 
-  // Header background
+  
   const headerHeight = 70;
   doc.setFillColor(40, 110, 180);
   doc.rect(0, 0, pageWidth, headerHeight, 'F');
 
-  // Header text
+  
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(18);
   doc.text(title, margin, 28);
@@ -367,44 +449,14 @@ const downloadPDF = async () => {
   const subtitle = `Periode: ${monthNames[selectedMonth.value - 1]} ${selectedYear.value}` + (selectedDevice.value ? ` • Device: ${selectedDevice.value}` : '');
   doc.text(subtitle, margin, 48);
 
-  // Summary stats boxes
+  
   doc.setTextColor(0, 0, 0);
-  const statsY = headerHeight + 20;
   const boxWidth = (pageWidth - margin * 2 - 20) / 2;
   const boxHeight = 60;
   const stats = computeOverallStats();
 
-  // Box 1 - Temperature
-  doc.setFillColor(240, 248, 255);
-  doc.roundedRect(margin, statsY, boxWidth, boxHeight, 8, 8, 'F');
-  doc.setFontSize(11);
-  doc.text('Average Temperature', margin + 12, statsY + 22);
-  doc.setFontSize(16);
-  doc.setTextColor(239, 68, 68);
-  doc.text(`${stats.avgTemp.toFixed(2)}°C`, margin + 12, statsY + 44);
-  doc.setTextColor(0, 0, 0);
-
-  // Box 2 - Humidity
-  const box2X = margin + boxWidth + 20;
-  doc.setFillColor(240, 248, 255);
-  doc.roundedRect(box2X, statsY, boxWidth, boxHeight, 8, 8, 'F');
-  doc.setFontSize(11);
-  doc.text('Average Humidity', box2X + 12, statsY + 22);
-  doc.setFontSize(16);
-  doc.setTextColor(59, 130, 246);
-  doc.text(`${stats.avgHumidity.toFixed(2)}%`, box2X + 12, statsY + 44);
-  doc.setTextColor(0, 0, 0);
-
-  // Chart image
-  const chartY = statsY + boxHeight + 20;
-  const chartImg = await generateReportChartImage();
-  const chartHeight = 200;
-  if (chartImg) {
-    doc.addImage(chartImg, 'PNG', margin, chartY, pageWidth - margin * 2, chartHeight);
-  }
-
-  // Table data
-  const headers = [['Tanggal', 'Avg Suhu (°C)', 'Avg Kelembaban (%)', 'Jumlah', 'Pagi 08:00', 'Sore 16:00']];
+  
+  const headers = [['Tanggal', 'Rata-rata Suhu (°C)', 'Rata-rata Kelembaban (%)', 'Jumlah', 'Pagi 08:00', 'Sore 16:00']];
   const body = reportData.value.data.map(d => [
     d.date,
     d.avg_temperature?.toFixed(2) || '-',
@@ -417,11 +469,28 @@ const downloadPDF = async () => {
   autoTable(doc, {
     head: headers,
     body,
-    startY: chartY + chartHeight + 20,
+    startY: headerHeight + 20,
     styles: { fontSize: 9, cellPadding: 4 },
     headStyles: { fillColor: [40, 110, 180], textColor: 255 },
     theme: 'striped',
   });
+
+  
+  const tableEndY = (doc as any).lastAutoTable?.finalY || (headerHeight + 20);
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const chartImg = await generateReportChartImage();
+  const chartHeight = 220;
+  if (chartImg) {
+    let chartY = tableEndY + 20;
+    if (chartY + chartHeight + 20 > pageHeight) {
+      doc.addPage();
+      chartY = 40;
+    }
+    
+    doc.setFontSize(11);
+    doc.text('Grafik Rata-rata Harian Suhu & Kelembaban', margin, chartY - 8);
+    doc.addImage(chartImg, 'PNG', margin, chartY, pageWidth - margin * 2, chartHeight);
+  }
 
   doc.save(`sensor-report-${selectedYear.value}-${month}.pdf`);
 };
@@ -429,7 +498,7 @@ const downloadPDF = async () => {
 const overallStats = computed(() => {
   if (!reportData.value) return null;
   
-  // If backend provides overall_stats, use it
+  
   if (reportData.value.overall_stats) {
     return {
       avgTemp: reportData.value.overall_stats.avg_temperature,
@@ -442,7 +511,7 @@ const overallStats = computed(() => {
     };
   }
   
-  // Fallback to client-side calculation
+  
   const validDays = reportData.value.data.filter(d => d.avg_temperature !== null);
   if (validDays.length === 0) return null;
   
@@ -468,7 +537,7 @@ onMounted(() => {
   fetchReport();
 });
 
-// Theme tracking lifecycle
+
 onMounted(() => {
   updateIsDark();
   const mql = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
@@ -635,6 +704,8 @@ onUnmounted(() => {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+
+                  
                 </div>
               </CardContent>
             </Card>
@@ -868,6 +939,8 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
+
+      
 
       <!-- Removed floating theme toggle in favor of dropdown -->
     </div>

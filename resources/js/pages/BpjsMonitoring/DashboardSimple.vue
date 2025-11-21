@@ -70,7 +70,7 @@ const fetchMonitoringData = async () => {
     isLoading.value = true;
     error.value = null;
     
-    // Try the simple endpoint first for testing
+    
     const response = await fetch('/simple-bpjs-data');
     
     if (!response.ok) {
