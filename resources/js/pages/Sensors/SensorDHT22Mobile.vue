@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import AppHeaderLayout from '@/layouts/app/AppHeaderLayout.vue';
-import FloatingThemeToggle from '@/components/FloatingThemeToggle.vue';
+import { useAppearance } from '@/composables/useAppearance';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import RealtimeLineChart from '@/components/charts/RealtimeLineChart.vue';
@@ -13,7 +14,11 @@ import {
   Droplets,
   Wifi,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  MoreVertical,
+  Sun,
+  Moon,
+  TrendingUp
 } from 'lucide-vue-next';
 
 type Snowflake = {
@@ -23,6 +28,40 @@ type Snowflake = {
   duration: number;
   opacity: number;
 };
+
+const { updateAppearance } = useAppearance();
+// Track applied theme so toggle reflects actual state (including 'system')
+const isDark = ref(false);
+const updateIsDark = () => {
+  if (typeof document !== 'undefined') {
+    isDark.value = document.documentElement.classList.contains('dark');
+  }
+};
+
+const toggleTheme = () => {
+  const next = isDark.value ? 'light' : 'dark';
+  updateAppearance(next);
+  isDark.value = next === 'dark';
+};
+
+onMounted(() => {
+  updateIsDark();
+  const mql = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  const handler = () => updateIsDark();
+  if (mql) {
+    mql.addEventListener('change', handler);
+  }
+  (isDark as any)._mql = mql;
+  (isDark as any)._handler = handler;
+});
+
+onUnmounted(() => {
+  const mql = (isDark as any)._mql as MediaQueryList | null;
+  const handler = (isDark as any)._handler as (() => void) | null;
+  if (mql && handler) {
+    mql.removeEventListener('change', handler as EventListener);
+  }
+});
 
 const snowflakes = ref<Snowflake[]>([]);
 
@@ -309,10 +348,54 @@ onUnmounted(() => {
                     <div class="text-sm font-semibold text-white">{{ deviceDisplayName(currentDeviceStatus?.device_id || '') }}</div>
                     <div class="text-[11px] text-white/80 ml-2">{{ currentDeviceStatus ? formatLastSeen(currentDeviceStatus.last_seen_minutes) : '' }}</div>
                   </div>
-                  <Button @click="fetchMonitoringData" :disabled="isLoading" variant="outline" size="sm" class="bg-white/10 border-white/20 text-white hover:bg-white/20">
-                    <RefreshCw :class="{ 'animate-spin': isLoading }" class="w-4 h-4 mr-2" />
-                    Refresh
-                  </Button>
+                  <div class="flex items-center gap-2">
+                    <Button @click="fetchMonitoringData" :disabled="isLoading" variant="outline" size="sm" class="bg-white/10 border-white/20 text-white hover:bg-white/20">
+                      <RefreshCw :class="{ 'animate-spin': isLoading }" class="w-4 h-4 mr-2" />
+                      Refresh
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger as-child>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          class="h-8 w-8 p-0 inline-flex items-center justify-center bg-white/10 border-white/20 text-white hover:bg-white/20"
+                          aria-label="Actions"
+                        >
+                          <MoreVertical class="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" class="w-56">
+                        <DropdownMenuItem @click="toggleTheme">
+                          <div class="flex items-center justify-between w-full">
+                            <div class="flex items-center">
+                              <component :is="isDark ? Moon : Sun" class="w-4 h-4 mr-2" />
+                              <span>Theme</span>
+                            </div>
+                            <button
+                              type="button"
+                              role="switch"
+                              :aria-checked="isDark"
+                              @click.stop="toggleTheme"
+                              class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                              :class="isDark ? 'bg-blue-600' : 'bg-gray-300'"
+                            >
+                              <span
+                                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                                :class="isDark ? 'translate-x-5' : 'translate-x-1'"
+                              />
+                            </button>
+                          </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem :as-child="true">
+                          <Link class="block w-full" :href="'/sensor-report'" as="button">
+                            <TrendingUp class="w-4 h-4 mr-2" />
+                            Ke Report
+                          </Link>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
                 <div class="mt-4 grid grid-cols-2 gap-4">
                   <div @click="openLatest('temperature')" title="Klik untuk lihat 10 data terbaru" class="rounded-2xl p-4 ring-1 ring-white/20 text-white bg-white/10 backdrop-blur-md shadow-md hover:bg-white/15 transition-colors clickable-card hover-lift">
@@ -440,7 +523,6 @@ onUnmounted(() => {
         </Card>
       </div>
 
-      <FloatingThemeToggle />
       <!-- Modal: 10 Data Terbaru -->
       <Dialog :open="latestModalOpen" @update:open="(v: boolean) => latestModalOpen = v">
         <DialogContent class="sm:max-w-[425px]">

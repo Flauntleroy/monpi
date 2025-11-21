@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { ref, onMounted, computed } from 'vue';
-import FloatingThemeToggle from '@/components/FloatingThemeToggle.vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { Link } from '@inertiajs/vue3';
+import { useAppearance } from '@/composables/useAppearance';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -14,7 +16,11 @@ import {
   RefreshCw,
   AlertTriangle,
   Sunrise,
-  Sunset
+  Sunset,
+  MoreVertical,
+  Sun,
+  Moon,
+  Home
 } from 'lucide-vue-next';
 
 interface MorningReading {
@@ -113,6 +119,22 @@ const openDayDetail = (day: DailyData) => {
 const getTotalReadings = () => {
   if (!reportData.value) return 0;
   return reportData.value.data.reduce((total, day) => total + (day.readings_count || 0), 0);
+};
+
+// Theme appearance API
+const { updateAppearance } = useAppearance();
+// Track applied theme so toggle reflects actual state (including 'system')
+const isDark = ref(false);
+const updateIsDark = () => {
+  if (typeof document !== 'undefined') {
+    isDark.value = document.documentElement.classList.contains('dark');
+  }
+};
+
+const toggleTheme = () => {
+  const next = isDark.value ? 'light' : 'dark';
+  updateAppearance(next);
+  isDark.value = next === 'dark';
 };
 
 const fetchReport = async () => {
@@ -248,6 +270,26 @@ const overallStats = computed(() => {
 onMounted(() => {
   fetchReport();
 });
+
+// Theme tracking lifecycle
+onMounted(() => {
+  updateIsDark();
+  const mql = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  const handler = () => updateIsDark();
+  if (mql) {
+    mql.addEventListener('change', handler);
+  }
+  (isDark as any)._mql = mql;
+  (isDark as any)._handler = handler;
+});
+
+onUnmounted(() => {
+  const mql = (isDark as any)._mql as MediaQueryList | null;
+  const handler = (isDark as any)._handler as (() => void) | null;
+  if (mql && handler) {
+    mql.removeEventListener('change', handler as EventListener);
+  }
+});
 </script>
 
 <template>
@@ -255,9 +297,54 @@ onMounted(() => {
   <div class="min-h-screen bg-white dark:bg-gray-900">
     <div class="flex h-full flex-1 flex-col gap-6 p-6">
       <!-- Header -->
-      <div class="mb-2">
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Sensor Report</h1>
-        <p class="text-gray-600 dark:text-gray-400 mt-1">Laporan harian suhu dan kelembaban sensor</p>
+      <div class="mb-2 flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Report Servo DHT22</h1>
+          <!-- <p class="text-gray-600 dark:text-gray-400 mt-1">Laporan harian suhu dan kelembaban sensor</p> -->
+        </div>
+        <!-- Actions Dropdown -->
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button 
+              variant="outline" 
+              size="sm"
+              class="h-10 w-10 p-0 inline-flex items-center justify-center"
+              aria-label="Actions"
+            >
+              <MoreVertical class="w-5 h-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" class="w-56">
+            <DropdownMenuItem @click="toggleTheme">
+              <div class="flex items-center justify-between w-full">
+                <div class="flex items-center">
+                  <component :is="isDark ? Moon : Sun" class="w-4 h-4 mr-2" />
+                  <span>Theme</span>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  :aria-checked="isDark"
+                  @click.stop="toggleTheme"
+                  class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                  :class="isDark ? 'bg-blue-600' : 'bg-gray-300'"
+                >
+                  <span
+                    class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                    :class="isDark ? 'translate-x-5' : 'translate-x-1'"
+                  />
+                </button>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem :as-child="true">
+              <Link class="block w-full" :href="'/sensor'" as="button">
+                <Home class="w-4 h-4 mr-2" />
+                Ke Sensor (Home)
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <!-- Error Alert -->
@@ -290,7 +377,7 @@ onMounted(() => {
               <CardHeader class="pb-3 pt-4">
                 <CardTitle class="text-base flex items-center gap-2">
                   <TrendingUp class="w-4 h-4" />
-                  Filter
+                  Periode
                 </CardTitle>
               </CardHeader>
               <CardContent class="space-y-3">
@@ -511,7 +598,7 @@ onMounted(() => {
             <Card>
               <CardHeader class="pb-3 pt-4">
                 <CardTitle class="text-lg">{{ monthNames[selectedMonth - 1] }} {{ selectedYear }}</CardTitle>
-                <CardDescription class="text-xs">Klik tanggal untuk detail</CardDescription>
+                <!-- <CardDescription class="text-xs">Klik tanggal untuk detail</CardDescription> -->
               </CardHeader>
               <CardContent class="pt-0">
                 <!-- Calendar Grid - More Compact -->
@@ -572,7 +659,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <FloatingThemeToggle />
+      <!-- Removed floating theme toggle in favor of dropdown -->
     </div>
     
     <!-- Detail Modal -->
