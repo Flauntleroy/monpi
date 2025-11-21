@@ -364,7 +364,7 @@ const downloadPDF = async () => {
   doc.setFontSize(18);
   doc.text(title, margin, 28);
   doc.setFontSize(11);
-  const subtitle = selectedDevice.value ? `Device: ${selectedDevice.value}` : '${selectedYear.value}-${month}';
+  const subtitle = `Periode: ${monthNames[selectedMonth.value - 1]} ${selectedYear.value}` + (selectedDevice.value ? ` • Device: ${selectedDevice.value}` : '');
   doc.text(subtitle, margin, 48);
 
   // Summary stats boxes
