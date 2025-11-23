@@ -152,13 +152,24 @@ const fetchReport = async () => {
     if (selectedDevice.value) params.set('device_id', selectedDevice.value);
     
     const response = await fetch(`/sensor/report?${params.toString()}`);
+    const contentType = response.headers.get('content-type') || '';
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      if (contentType.includes('application/json')) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      } else {
+        const text = await response.text();
+        throw new Error(`HTTP error ${response.status}: ${text.slice(0, 140)}`);
+      }
     }
-    
-    const data = await response.json();
-    reportData.value = data;
+
+    if (contentType.includes('application/json')) {
+      const data = await response.json();
+      reportData.value = data;
+    } else {
+      const text = await response.text();
+      throw new Error(`Unexpected non-JSON response: ${text.slice(0, 140)}`);
+    }
   } catch (err: any) {
     error.value = err?.message || 'Gagal memuat report';
     console.error('Report error:', err);

@@ -138,116 +138,145 @@ class SensorMonitoringController extends Controller
 
             $startDate = \Carbon\Carbon::createFromDate($year, $month, 1)->startOfDay();
             $endDate = $startDate->copy()->endOfMonth()->endOfDay();
-
-            $query = SensorReading::query()
+            // Base query (filtered by device if provided)
+            $baseQuery = SensorReading::query()
                 ->from('sensors')
                 ->whereBetween('recorded_at', [$startDate, $endDate]);
-
             if ($deviceId) {
-                $query->where('device_id', $deviceId);
+                $baseQuery->where('device_id', $deviceId);
             }
 
-            $readings = $query->orderBy('recorded_at')->get();
-            
-            
-            $grouped = $readings->groupBy(function ($item) {
-                return $item->recorded_at->format('Y-m-d');
-            });
+            // 1) Daily aggregates in the database to avoid loading all rows
+            $dailyStats = SensorReading::query()
+                ->from('sensors')
+                ->selectRaw('DATE(recorded_at) as date, AVG(temperature_c) as avg_temperature, AVG(humidity) as avg_humidity, COUNT(*) as readings_count')
+                ->whereBetween('recorded_at', [$startDate, $endDate])
+                ->when($deviceId, function ($q) use ($deviceId) {
+                    $q->where('device_id', $deviceId);
+                })
+                ->groupBy('date')
+                ->orderBy('date')
+                ->get()
+                ->keyBy('date');
 
+            // 2) Morning and evening readings: pick the first reading in a small time window
+            //    Morning window: 08:00-10:00; Evening window: 16:00-18:00
+            $morningReadings = SensorReading::query()
+                ->from('sensors')
+                ->selectRaw('DATE(recorded_at) as date, recorded_at, temperature_c, humidity, device_id')
+                ->whereBetween('recorded_at', [$startDate->copy()->setTime(8, 0, 0), $endDate])
+                ->when($deviceId, function ($q) use ($deviceId) {
+                    $q->where('device_id', $deviceId);
+                })
+                ->whereRaw("TIME(recorded_at) >= '08:00:00' AND TIME(recorded_at) < '10:00:00'")
+                ->orderBy('recorded_at')
+                ->get()
+                ->groupBy('date')
+                ->map(function ($group) {
+                    return $group->first();
+                });
+
+            $eveningReadings = SensorReading::query()
+                ->from('sensors')
+                ->selectRaw('DATE(recorded_at) as date, recorded_at, temperature_c, humidity, device_id')
+                ->whereBetween('recorded_at', [$startDate->copy()->setTime(16, 0, 0), $endDate])
+                ->when($deviceId, function ($q) use ($deviceId) {
+                    $q->where('device_id', $deviceId);
+                })
+                ->whereRaw("TIME(recorded_at) >= '16:00:00' AND TIME(recorded_at) < '18:00:00'")
+                ->orderBy('recorded_at')
+                ->get()
+                ->groupBy('date')
+                ->map(function ($group) {
+                    return $group->first();
+                });
+
+            // Build report day by day using the aggregated results
             $report = [];
             $currentDate = $startDate->copy();
-
             while ($currentDate <= $endDate) {
                 $dateStr = $currentDate->format('Y-m-d');
-                $dayReadings = $grouped->get($dateStr, collect());
+
+                $stats = $dailyStats->get($dateStr);
+                $morning = $morningReadings->get($dateStr);
+                $evening = $eveningReadings->get($dateStr);
 
                 $dailyData = [
                     'date' => $dateStr,
-                    'avg_temperature' => $dayReadings->isNotEmpty() ? round($dayReadings->avg('temperature_c'), 2) : null,
-                    'avg_humidity' => $dayReadings->isNotEmpty() ? round($dayReadings->avg('humidity'), 2) : null,
-                    'readings_count' => $dayReadings->count(),
+                    'avg_temperature' => $stats ? round((float) $stats->avg_temperature, 2) : null,
+                    'avg_humidity' => $stats ? round((float) $stats->avg_humidity, 2) : null,
+                    'readings_count' => $stats ? (int) $stats->readings_count : 0,
                     'morning_reading' => null,
                     'evening_reading' => null,
                 ];
 
-                if ($dayReadings->isNotEmpty()) {
-                    
-                    $morningTarget = $currentDate->copy()->setTime(8, 0, 0);
-                    $morningReading = $dayReadings->sortBy(function ($reading) use ($morningTarget) {
-                        return abs($reading->recorded_at->diffInSeconds($morningTarget));
-                    })->first();
+                if ($morning) {
+                    $dailyData['morning_reading'] = [
+                        'time' => \Carbon\Carbon::parse($morning->recorded_at)->format('H:i:s'),
+                        'temperature_c' => (float) $morning->temperature_c,
+                        'humidity' => (float) $morning->humidity,
+                        'device_id' => $morning->device_id,
+                    ];
+                }
 
-                    
-                    
-                    if ($morningReading) {
-                        $dailyData['morning_reading'] = [
-                            'time' => $morningReading->recorded_at->format('H:i:s'),
-                            'temperature_c' => $morningReading->temperature_c,
-                            'humidity' => $morningReading->humidity,
-                        ];
-                    }
-
-                    
-                    $eveningTarget = $currentDate->copy()->setTime(16, 0, 0);
-                    $eveningReading = $dayReadings->sortBy(function ($reading) use ($eveningTarget) {
-                        return abs($reading->recorded_at->diffInSeconds($eveningTarget));
-                    })->first();
-
-                    if ($eveningReading) {
-                        $dailyData['evening_reading'] = [
-                            'time' => $eveningReading->recorded_at->format('H:i:s'),
-                            'temperature_c' => $eveningReading->temperature_c,
-                            'humidity' => $eveningReading->humidity,
-                        ];
-                    }
+                if ($evening) {
+                    $dailyData['evening_reading'] = [
+                        'time' => \Carbon\Carbon::parse($evening->recorded_at)->format('H:i:s'),
+                        'temperature_c' => (float) $evening->temperature_c,
+                        'humidity' => (float) $evening->humidity,
+                        'device_id' => $evening->device_id,
+                    ];
                 }
 
                 $report[] = $dailyData;
                 $currentDate->addDay();
             }
 
-            
+            // 3) Overall stats using aggregate queries and selective single-row lookups
+            $overallRow = (clone $baseQuery)
+                ->selectRaw('AVG(temperature_c) as avg_temperature, AVG(humidity) as avg_humidity, MIN(temperature_c) as min_temperature, MAX(temperature_c) as max_temperature, MIN(humidity) as min_humidity, MAX(humidity) as max_humidity, COUNT(*) as total_readings')
+                ->first();
+
             $overallStats = null;
-            if ($readings->isNotEmpty()) {
-                
-                $maxTempReading = $readings->sortByDesc('temperature_c')->first();
-                $minTempReading = $readings->sortBy('temperature_c')->first();
-                $maxHumidityReading = $readings->sortByDesc('humidity')->first();
-                $minHumidityReading = $readings->sortBy('humidity')->first();
+            if ($overallRow && (int) $overallRow->total_readings > 0) {
+                $maxTempRecord = (clone $baseQuery)->orderByDesc('temperature_c')->orderByDesc('recorded_at')->first();
+                $minTempRecord = (clone $baseQuery)->orderBy('temperature_c')->orderBy('recorded_at')->first();
+                $maxHumidityRecord = (clone $baseQuery)->orderByDesc('humidity')->orderByDesc('recorded_at')->first();
+                $minHumidityRecord = (clone $baseQuery)->orderBy('humidity')->orderBy('recorded_at')->first();
 
                 $overallStats = [
-                    'max_temperature' => round($readings->max('temperature_c'), 2),
-                    'min_temperature' => round($readings->min('temperature_c'), 2),
-                    'max_humidity' => round($readings->max('humidity'), 2),
-                    'min_humidity' => round($readings->min('humidity'), 2),
-                    'avg_temperature' => round($readings->avg('temperature_c'), 2),
-                    'avg_humidity' => round($readings->avg('humidity'), 2),
-                    'total_readings' => $readings->count(),
-                    
-                    'max_temp_record' => [
-                        'temperature_c' => $maxTempReading->temperature_c,
-                        'humidity' => $maxTempReading->humidity,
-                        'recorded_at' => $maxTempReading->recorded_at->toIso8601String(),
-                        'device_id' => $maxTempReading->device_id,
-                    ],
-                    'min_temp_record' => [
-                        'temperature_c' => $minTempReading->temperature_c,
-                        'humidity' => $minTempReading->humidity,
-                        'recorded_at' => $minTempReading->recorded_at->toIso8601String(),
-                        'device_id' => $minTempReading->device_id,
-                    ],
-                    'max_humidity_record' => [
-                        'temperature_c' => $maxHumidityReading->temperature_c,
-                        'humidity' => $maxHumidityReading->humidity,
-                        'recorded_at' => $maxHumidityReading->recorded_at->toIso8601String(),
-                        'device_id' => $maxHumidityReading->device_id,
-                    ],
-                    'min_humidity_record' => [
-                        'temperature_c' => $minHumidityReading->temperature_c,
-                        'humidity' => $minHumidityReading->humidity,
-                        'recorded_at' => $minHumidityReading->recorded_at->toIso8601String(),
-                        'device_id' => $minHumidityReading->device_id,
-                    ],
+                    'max_temperature' => round((float) $overallRow->max_temperature, 2),
+                    'min_temperature' => round((float) $overallRow->min_temperature, 2),
+                    'max_humidity' => round((float) $overallRow->max_humidity, 2),
+                    'min_humidity' => round((float) $overallRow->min_humidity, 2),
+                    'avg_temperature' => round((float) $overallRow->avg_temperature, 2),
+                    'avg_humidity' => round((float) $overallRow->avg_humidity, 2),
+                    'total_readings' => (int) $overallRow->total_readings,
+
+                    'max_temp_record' => $maxTempRecord ? [
+                        'temperature_c' => (float) $maxTempRecord->temperature_c,
+                        'humidity' => (float) $maxTempRecord->humidity,
+                        'recorded_at' => $maxTempRecord->recorded_at->toIso8601String(),
+                        'device_id' => $maxTempRecord->device_id,
+                    ] : null,
+                    'min_temp_record' => $minTempRecord ? [
+                        'temperature_c' => (float) $minTempRecord->temperature_c,
+                        'humidity' => (float) $minTempRecord->humidity,
+                        'recorded_at' => $minTempRecord->recorded_at->toIso8601String(),
+                        'device_id' => $minTempRecord->device_id,
+                    ] : null,
+                    'max_humidity_record' => $maxHumidityRecord ? [
+                        'temperature_c' => (float) $maxHumidityRecord->temperature_c,
+                        'humidity' => (float) $maxHumidityRecord->humidity,
+                        'recorded_at' => $maxHumidityRecord->recorded_at->toIso8601String(),
+                        'device_id' => $maxHumidityRecord->device_id,
+                    ] : null,
+                    'min_humidity_record' => $minHumidityRecord ? [
+                        'temperature_c' => (float) $minHumidityRecord->temperature_c,
+                        'humidity' => (float) $minHumidityRecord->humidity,
+                        'recorded_at' => $minHumidityRecord->recorded_at->toIso8601String(),
+                        'device_id' => $minHumidityRecord->device_id,
+                    ] : null,
                 ];
             }
 
